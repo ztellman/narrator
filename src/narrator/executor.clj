@@ -22,7 +22,7 @@
 
 (def ^:private ^:const num-cores (.availableProcessors (Runtime/getRuntime)))
 
-(def ^:private ^:const max-permits 1 #_(* 2 num-cores))
+(def ^:private ^:const max-permits (* 2 num-cores))
 
 ;;;
 
@@ -126,18 +126,48 @@
 
 ;;;
 
+(definterface+ IAccumulator
+  (add! [_ x]))
+
+(deftype+ Accumulator
+  [^objects ary
+   ^long capacity
+   ^AtomicLong idx]
+  IAccumulator
+  (add! [_ x]
+    (let [idx (.getAndIncrement idx)]
+      (if (< idx capacity)
+        (do
+          (aset ary idx x)
+          true)
+        false)))
+  clojure.lang.Seqable
+  (seq [_]
+    (let [idx (.get idx)]
+      (if (<= capacity idx)
+        (seq ary)
+        (let [ary' (object-array idx)]
+          (System/arraycopy ary 0 ary' 0 idx)
+          (seq ary'))))))
+
+(defn accumulator [^long capacity]
+  (Accumulator.
+    (object-array capacity)
+    capacity
+    (AtomicLong. 0)))
+
 (defn buffered-aggregator
   [& {:keys [operator capacity semaphore hash]
       :or {capacity 1024
            semaphore (semaphore)}}]
   (let [^Semaphore semaphore semaphore
-        q-ref (atom (ArrayBlockingQueue. capacity))
-        flush (fn flush [^ArrayBlockingQueue q sync?]
-                (when (compare-and-set! q-ref q (ArrayBlockingQueue. capacity))
+        acc-ref (atom (accumulator capacity))
+        flush (fn flush [acc sync?]
+                (when (compare-and-set! acc-ref acc (accumulator capacity))
                   (if sync?
-                    (op/process! operator q)
+                    (op/process-all! operator (seq acc))
                     (submit
-                      #(op/process! operator q)
+                      #(op/process-all! operator (seq acc))
                       semaphore
                       (if hash
                         (rem hash num-cores)
@@ -146,21 +176,21 @@
       op/StreamOperator
       (aggregator? [_] true)
       (ordered? [_] (op/ordered? operator))
-      (reset! [_] (op/reset! operator))
-      (process! [this msgs]
+      (reset-operator! [_] (op/reset-operator! operator))
+      (process-all! [this msgs]
         (doseq [msg msgs]
-          (op/offer! this msg)))
+          (op/process! this msg)))
       
       IBufferedAggregator
-      (flush [_]
+      (flush-operator [_]
         (with-exclusive-lock semaphore
-          (flush @q-ref true)
-          (op/flush operator)))
-      (offer! [this msg]
+          (flush @acc-ref true)
+          (op/flush-operator operator)))
+      (process! [this msg]
         (loop []
-          (let [q @q-ref]
-            (when-not (.offer ^ArrayBlockingQueue q msg)
-              (flush q (not *exclusive-lock*))
+          (let [acc @acc-ref]
+            (when-not (add! acc msg)
+              (flush acc (not *exclusive-lock*))
               (recur)))))
 
       clojure.lang.IDeref

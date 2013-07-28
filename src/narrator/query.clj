@@ -26,14 +26,14 @@
                         t (long (timestamp x))]
                     (if (< t end)
                       (do
-                        (op/offer! op x)
+                        (op/process! op x)
                         (recur (rest s)))
                       s))))]
-        (op/flush op)
+        (op/flush-operator op)
         (cons
           {:timestamp end
            :value (let [x @op]
-                    (op/reset! op)
+                    (op/reset-operator! op)
                     x)}
           (query-seq- op end options s))))))
 
@@ -50,7 +50,8 @@
           block-size 1024}
      :as options}
     s]
-     (let [generator (op/operators->generator query-descriptor)
+     (let [
+           generator (op/operators->generator query-descriptor)
            ordered? (op/ordered? (generator))
            semaphore (ex/semaphore)]
        (binding [op/*operator-wrapper* (fn [op hash]
@@ -60,7 +61,7 @@
                                            :hash hash
                                            :capacity block-size))]
          (query-seq-
-           (generator (when ordered? (rand-int Integer/MAX_VALUE)))
+           (generator)
            (timestamp (first s))
            options
            s)))))

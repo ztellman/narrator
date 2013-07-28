@@ -4,10 +4,11 @@
   :license {:name "MIT License"
             :url ""}
   :dependencies [[potemkin "0.3.1"]
-                 [com.github.stephenc.high-scale-lib/high-scale-lib "1.1.4"]]
+                 [org.codehaus.jsr166-mirror/jsr166y "1.7.0"]]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.5.1"]
                                   [criterium "0.4.1"]]}}
   :warn-on-reflection true
-  :test-selectors {:default (complement :benchmark)
-                   :benchmark :benchmark}
+  :test-selectors {:default #(not (or (:stress %) (:benchmark %)))
+                   :benchmark :benchmark
+                   :stress :stress}
   :jvm-opts ^:replace ["-server"])
