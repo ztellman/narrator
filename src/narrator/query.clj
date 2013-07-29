@@ -39,10 +39,11 @@
                                                (recur (p/inc idx)))
                                              
                                              ;; stopping mid-chunk, cons the remainder back on
-                                             (let [c' (chunk-buffer (p/- cnt idx))]
-                                               (dotimes [idx' (count c')]
-                                                 (chunk-append c' (.nth c (p/+ idx idx'))))
-                                               [false (chunk-cons c' (chunk-rest s))])))
+                                             (let [remaining (p/- cnt idx)
+                                                   b (chunk-buffer remaining)]
+                                               (dotimes [idx' remaining]
+                                                 (chunk-append b (.nth c (p/+ idx idx'))))
+                                               [false (chunk-cons (chunk b) (chunk-rest s))])))
                                          [true (chunk-rest s)]))]
                       (if recur?
                         (recur s)

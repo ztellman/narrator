@@ -17,6 +17,12 @@
     3000 [:one inc inc sum]
     3002 [:one inc inc sum inc inc]))
 
+(deftest test-periodic-basic-parsing
+  (are [expected descriptor period]
+    (= expected (map :value (query-seq descriptor {:timestamp :n, :period period} data)))
+
+    (range 1e3) [:n sum] 1))
+
 (deftest test-group-by
   (is (= {true 50000, false 50000}
         (query-seq
