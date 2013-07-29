@@ -20,7 +20,6 @@
    s]
   (when-not (empty? s)
     (lazy-seq
-      (reset! current-time start-time)
       (let [end (long (+ start-time period))
             s (loop [s s]
                 (when-not (empty? s)
@@ -32,6 +31,7 @@
                         (recur (rest s)))
                       s))))]
         (c/flush-operator op)
+        (reset! current-time end)
         (cons
           {:timestamp end
            :value (let [x @op]
