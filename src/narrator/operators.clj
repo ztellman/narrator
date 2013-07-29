@@ -79,3 +79,8 @@
    nested data-structures."
   []
   (*top-level-generator*))
+
+(import-vars
+  [narrator.utils.sampling
+   sample
+   moving-sample])

@@ -1,13 +1,11 @@
-# narrator
+![](https://dl.dropboxusercontent.com/u/174179/narrator/storyteller.png)
 
-A Clojure library designed to ... well, that part is up to you.
+Narrator is a library for reducing streams of time-ordered data into concise, high-level descriptions.
 
-## Usage
+Explanations of how will be forthcoming.
 
-FIXME
+### license
 
-## License
+Copyright © 2013 Zachary Tellman
 
-Copyright © 2013 FIXME
-
-Distributed under the Eclipse Public License, the same as Clojure.
+Distributed under the [MIT License](http://opensource.org/licenses/MIT)
