@@ -3,7 +3,9 @@
     [potemkin]
     [narrator core])
   (:require
-    [clojure.set :as set])
+    [clojure.set :as set]
+    [narrator.utils
+     sampling])
   (:import
     [java.util.concurrent
      ConcurrentHashMap]
