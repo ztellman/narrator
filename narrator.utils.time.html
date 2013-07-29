@@ -1,0 +1,129 @@
+<html lang="en">
+  <head>
+    <title>narrator.utils.time documentation</title>
+    <link href="css/default.css" type="text/css" rel="stylesheet" />
+    <link href="css/codox-md.css" type="text/css" rel="stylesheet" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/page_effects.js"></script>
+  </head>
+  <body>
+    <header>
+      <div id="header">
+        <h1 class="project-title">Narrator 0.1.0-SNAPSHOT API documentation</h1>
+      </div>
+    </header>
+    <navigation>
+      <div id="namespaces" class="sidebar">
+        <h3>Namespaces</h3>
+        <ul class="ns-links">
+          <li class="ns-list"><a class="ns-link ns-name" href="narrator.core.html">narrator.core</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.executor.html">narrator.executor</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.query.html">narrator.query</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.locks.html">narrator.utils.locks</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.rand.html">narrator.utils.rand</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.sampling.html">narrator.utils.sampling</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.time.html">narrator.utils.time</a></li>
+        </ul>
+      </div>
+      <div id="vars" class="sidebar">
+        <h3>Public Vars</h3>
+        <ul class="ns-var-links">
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-add">add</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-days">days</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-floor">floor</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-format-duration">format-duration</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-hours">hours</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-hz">hz</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-microseconds">microseconds</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-milliseconds">milliseconds</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-minutes">minutes</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-nanoseconds">nanoseconds</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.time.html#var-seconds">seconds</a></li>
+        </ul>
+      </div>
+    </navigation>
+    <article>
+      <div id="content" class="namespace-docs">
+        <h2 class="namespace-title">narrator.utils.time documentation</h2>
+        <div class="doc">
+</div>
+        <div class="ns-vars">
+          <div class="public">
+            <h3><a id="var-add" class="source var-name" href="/src/narrator/utils/time.clj">add</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[timestamp n unit]</div>
+            
+            
+            <div class="doc"><p>Adds <code>n</code>-many <code>units</code> to the timestamp.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-days" class="source var-name" href="/src/narrator/utils/time.clj">days</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[n]</div>
+            
+            
+            <div class="doc"><p>Converts days -&gt; milliseconds</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-floor" class="source var-name" href="/src/narrator/utils/time.clj">floor</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[timestamp unit]</div>
+            
+            
+            <div class="doc"><p>Given a timestamp and a unit, rounds down to the nearest even multiple of that unit.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-format-duration" class="source var-name" href="/src/narrator/utils/time.clj">format-duration</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[n]</div>
+            
+            
+            <div class="doc"><p>Returns a formatted string describing an interval, i.e. '5d 3h 1m'</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-hours" class="source var-name" href="/src/narrator/utils/time.clj">hours</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[n]</div>
+            
+            
+            <div class="doc"><p>Converts hours -&gt; milliseconds</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-hz" class="source var-name" href="/src/narrator/utils/time.clj">hz</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[n]</div>
+            
+            
+            <div class="doc"><p>Converts frequency -&gt; period in milliseconds</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-microseconds" class="source var-name" href="/src/narrator/utils/time.clj">microseconds</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[n]</div>
+            
+            
+            <div class="doc"><p>Converts microseconds -&gt; milliseconds</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-milliseconds" class="source var-name" href="/src/narrator/utils/time.clj">milliseconds</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[n]</div>
+            
+            
+            <div class="doc"><p>Converts milliseconds -&gt; milliseconds</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-minutes" class="source var-name" href="/src/narrator/utils/time.clj">minutes</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[n]</div>
+            
+            
+            <div class="doc"><p>Converts minutes -&gt; milliseconds</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-nanoseconds" class="source var-name" href="/src/narrator/utils/time.clj">nanoseconds</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[n]</div>
+            
+            
+            <div class="doc"><p>Converts nanoseconds -&gt; milliseconds</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-seconds" class="source var-name" href="/src/narrator/utils/time.clj">seconds</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[n]</div>
+            
+            
+            <div class="doc"><p>Converts seconds -&gt; milliseconds</p>
+</div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </body>
+
+</html>

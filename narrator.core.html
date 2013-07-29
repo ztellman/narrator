@@ -1,0 +1,148 @@
+<html lang="en">
+  <head>
+    <title>narrator.core documentation</title>
+    <link href="css/default.css" type="text/css" rel="stylesheet" />
+    <link href="css/codox-md.css" type="text/css" rel="stylesheet" />
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/page_effects.js"></script>
+  </head>
+  <body>
+    <header>
+      <div id="header">
+        <h1 class="project-title">Narrator 0.1.0-SNAPSHOT API documentation</h1>
+      </div>
+    </header>
+    <navigation>
+      <div id="namespaces" class="sidebar">
+        <h3>Namespaces</h3>
+        <ul class="ns-links">
+          <li class="ns-list"><a class="ns-link ns-name" href="narrator.core.html">narrator.core</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.executor.html">narrator.executor</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.query.html">narrator.query</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.locks.html">narrator.utils.locks</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.rand.html">narrator.utils.rand</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.sampling.html">narrator.utils.sampling</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.time.html">narrator.utils.time</a></li>
+        </ul>
+      </div>
+      <div id="vars" class="sidebar">
+        <h3>Public Vars</h3>
+        <ul class="ns-var-links">
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-accumulator">accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators">compile-operators</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators-%3Egenerator">compile-operators-&gt;generator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-defn-operator">defn-operator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-map-op">map-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-mapcat-op">mapcat-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-now">now</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-reducer-op">reducer-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-split">split</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-aggregator">stream-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-reducer">stream-reducer</a></li>
+        </ul>
+      </div>
+    </navigation>
+    <article>
+      <div id="content" class="namespace-docs">
+        <h2 class="namespace-title">narrator.core documentation</h2>
+        <div class="doc">
+</div>
+        <div class="ns-vars">
+          <div class="public">
+            <h3><a id="var-accumulator" class="source var-name" href="/src/narrator/core.clj">accumulator</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Yields a list of all messages seen since it has been reset.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-compile-operators" class="source var-name" href="/src/narrator/core.clj">compile-operators</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[op-descriptor]</div>
+            
+            
+            <div class="doc"><p>Given a descriptor of stream operations, returns an instance of an operator that is the
+composition of all operations.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-compile-operators-%3Egenerator" class="source var-name" href="/src/narrator/core.clj">compile-operators-&gt;generator</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[op-descriptor]</div>
+            
+            
+            <div class="doc"><p>Takes a descriptor of stream operations, and returns a function that generates a single
+stream operator that is the composition of all described operators.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-defn-operator" class="source var-name" href="/src/narrator/core.clj">defn-operator</a></h3>
+            <h4 class="var-type macro" id="var-type">macro</h4>
+            <div class="usage">[name &amp; rest]</div>
+            
+            
+            <div class="doc"><p>A variant of <code>defn</code> which is used to define a funciton which, given arguments,
+returns a stream operator.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-map-op" class="source var-name" href="/src/narrator/core.clj">map-op</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[f]</div>
+            
+            
+            <div class="doc"><p>Returns an unordered stream operator that maps <code>f</code> over every message.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-mapcat-op" class="source var-name" href="/src/narrator/core.clj">mapcat-op</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[f]</div>
+            
+            
+            <div class="doc"><p>Returns an unordered stream operator that mapcats <code>f</code> over every message.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-now" class="source var-name" href="/src/narrator/core.clj">now</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc"><p>Returns a lower bound on the timestamp of messages flowing through the stream operators.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-reducer-op" class="source var-name" href="/src/narrator/core.clj">reducer-op</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[f]</div>
+            
+            
+            <div class="doc"><p>Returns an unordered stream operator that applies the reducer <code>f</code> over the message stream.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-split" class="source var-name" href="/src/narrator/core.clj">split</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[name-&gt;ops]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-stream-aggregator" class="source var-name" href="/src/narrator/core.clj">stream-aggregator</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[&amp; {:keys [reset process flush deref ordered? combiner], :or {ordered? false}, :as args}]</div>
+            
+            
+            <div class="doc"><p>A stream operator which accepts messages, and can be dereferenced to get a description of
+all messages it has seen.  It must be given a <code>process</code> parameter, which is a single-arg
+function that takes a sequence of messages, and a <code>deref</code> parameter which is a no-arg
+function that returns a description of all messages it has seen.</p>
+
+<p>Optional parameters are:</p>
+
+<p><code>ordered?</code> - if true, messagse will be given in order on a single thread, defaults to false
+<code>reset</code> - a no-arg function which resets internal state
+<code>flush</code> - a no-arg function which flushes any messages which are currently buffered
+<code>combiner</code> - a single-arg function which takes a sequence of dereferenced values and returns a single value.  This is only valid if <code>ordered?</code> is false.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-stream-reducer" class="source var-name" href="/src/narrator/core.clj">stream-reducer</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[&amp; {:keys [reset ordered? reducer], :or {ordered? false}}]</div>
+            
+            
+            <div class="doc"><p>A stream operator which for each message emits zero or more messages.  It must be given
+a <code>reducer</code> parameter, which describes the reducer function that processes the messages.</p>
+
+<p>Optional parameters are:</p>
+
+<p><code>ordered?</code> - if true, messages will be given in order on a single thread, defaults to false
+<code>reset</code> - a no-arg function which can be used to reset internal state, if it exists</p>
+</div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </body>
+
+</html>
