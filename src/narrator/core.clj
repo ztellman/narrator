@@ -168,12 +168,12 @@
       (ifn? x) (map-op x)
       :else (throw (IllegalArgumentException. (str "Don't know how to handle " (pr-str x)))))))
 
-(defn compile-operators->generator
+(defn compile-operators
   "Takes a descriptor of stream operations, and returns a function that generates a single
    stream operator that is the composition of all described operators."
   [op-descriptor]
   (if-not (sequential? op-descriptor)
-    (compile-operators->generator [op-descriptor])
+    (compile-operators [op-descriptor])
     (let [generators (map ->operator-generator op-descriptor)
           gen+instances (map #(list % (%)) generators)
           ordered? (->> gen+instances
@@ -187,7 +187,7 @@
                                  (drop-while (comp (complement aggregator?) second))
                                  (map first))]]
       (if-not aggr
-        (compile-operators->generator
+        (compile-operators
           (concat op-descriptor [(accumulator)]))
         (fn this
           ([]
@@ -201,10 +201,12 @@
                      pre (when (seq pre)
                            (->> pre
                              (map ->stream-reducer)
+                             reverse
                              (apply comp)))
                      post (when (seq post)
                             (->> post
                               (map ->stream-reducer)
+                              reverse
                               (apply comp)))
                      deref-fn (if post
                                 #(first (into [] (post [@aggr])))
@@ -224,11 +226,11 @@
                      :process process-fn)
                    (or hash (when ordered? (rand-int Integer/MAX_VALUE))))))))))))
 
-(defn compile-operators
+(defn compile-operators*
   "Given a descriptor of stream operations, returns an instance of an operator that is the
    composition of all operations."
   [op-descriptor]
-  ((compile-operators->generator op-descriptor)))
+  ((compile-operators op-descriptor)))
 
 ;;;
 
@@ -246,7 +248,7 @@
   ""
   [name->ops]
   (let [ks (keys name->ops)
-        ops (map compile-operators (vals name->ops))]
+        ops (map compile-operators* (vals name->ops))]
     (stream-aggregator
       :ordered? (boolean (some ordered? ops))
       :process (fn [msgs]

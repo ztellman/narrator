@@ -12,7 +12,7 @@
 (deftest sanity-check-samples
   (testing "sample"
     (dotimes [_ num-sanity-checks]
-      (let [s (compile-operators sample)
+      (let [s (compile-operators* sample)
             _ (process-all! s (range 1e6))
             val @s
             avg (double (/ (reduce + val) (count val)))]
@@ -21,7 +21,7 @@
   (testing "moving-sample"
     (dotimes [_ num-sanity-checks]
       (binding [*now-fn* (constantly 0)]
-        (let [s (compile-operators moving-sample)
+        (let [s (compile-operators* moving-sample)
               _ (process-all! s (range 1e6))
             val @s
               avg (double (/ (reduce + val) (count val)))]
@@ -29,11 +29,11 @@
 
 (deftest ^:benchmark benchmark-samplers
   (println "sample")
-  (let [s (compile-operators sample)]
+  (let [s (compile-operators* sample)]
     (c/quick-bench
       (process-all! s (range 1e6))))
   (println "moving-sample")
   (binding [*now-fn* (constantly 0)]
-    (let [s (compile-operators moving-sample)]
+    (let [s (compile-operators* moving-sample)]
       (c/quick-bench
         (process-all! s (range 1e6))))))

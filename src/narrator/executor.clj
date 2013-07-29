@@ -2,6 +2,7 @@
   (:use
     [potemkin])
   (:require
+    [narrator.utils.rand :as r]
     [narrator.core :as c])
   (:import
     [java.util
@@ -81,7 +82,6 @@
 
 (let [leases (ConcurrentHashMap.)
       task-counter (AtomicLong. 0)
-
       
       inc-task (fn inc-task [semaphore]
                  (if-let [task-id *task-id*]
@@ -171,7 +171,7 @@
                       semaphore
                       (if hash
                         (rem hash num-cores)
-                        (rand-int num-cores))))))]
+                        (r/rand-int num-cores))))))]
     (reify
       c/StreamOperator
       (aggregator? [_] true)

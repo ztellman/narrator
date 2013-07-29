@@ -2,7 +2,7 @@
   (:use
     [potemkin])
   (:require
-    [clojure.core.reducers :as r]
+    [primitive-math :as p]
     [narrator.core :as c]
     [narrator.executor :as ex]))
 
@@ -23,13 +23,39 @@
       (let [end (long (+ start-time period))
             s (loop [s s]
                 (when-not (empty? s)
-                  (let [x (first s)
-                        t (long (timestamp x))]
-                    (if (< t end)
-                      (do
-                        (c/process! op x)
-                        (recur (rest s)))
-                      s))))]
+                  
+                  (if (chunked-seq? s)
+
+                    ;; chunked seq
+                    (let [c (chunk-first s)
+                          cnt (count c)
+                          [recur? s] (loop [idx 0]
+                                       (if (p/< idx cnt)
+                                         (let [x (.nth c idx)
+                                               t (long (timestamp x))]
+                                           (if (< t end)
+                                             (do
+                                               (c/process! op x)
+                                               (recur (p/inc idx)))
+                                             
+                                             ;; stopping mid-chunk, cons the remainder back on
+                                             (let [c' (chunk-buffer (p/- cnt idx))]
+                                               (dotimes [idx' (count c')]
+                                                 (chunk-append c' (.nth c (p/+ idx idx'))))
+                                               [false (chunk-cons c' (chunk-rest s))])))
+                                         [true (chunk-rest s)]))]
+                      (if recur?
+                        (recur s)
+                        s))
+
+                    ;; non-chunked seq
+                    (let [x (first s)
+                          t (long (timestamp x))]
+                      (if (< t end)
+                        (do
+                          (c/process! op x)
+                          (recur (rest s)))
+                        s)))))]
         (c/flush-operator op)
         (reset! current-time end)
         (cons
@@ -52,11 +78,9 @@
           block-size 1024}
      :as options}
     s]
-     (let [op (c/compile-operators query-descriptor)
-           ordered? (c/ordered? op)
-           semaphore (ex/semaphore)
-           start-time (or start-time (timestamp (first s)))
-           current-time (atom start-time)]
+     (let [start-time (or start-time (timestamp (first s)))
+           current-time (atom start-time)
+           semaphore (ex/semaphore)]
        (binding [c/*now-fn* #(deref current-time)
                  c/*operator-wrapper* (fn [op hash]
                                          (ex/buffered-aggregator
@@ -64,12 +88,14 @@
                                            :operator op
                                            :hash hash
                                            :capacity block-size))]
-         (query-seq-
-           op
-           current-time
-           (timestamp (first s))
-           options
-           s)))))
+         (let [op (c/compile-operators* query-descriptor)
+               ordered? (c/ordered? op)]
+           (query-seq-
+             op
+             current-time
+             (timestamp (first s))
+             options
+             s))))))
 
     
     

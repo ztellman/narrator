@@ -47,9 +47,8 @@
      (let [m (ConcurrentHashMap.)
            de-nil #(if (nil? %) ::nil %)
            re-nil #(if (identical? ::nil %) nil %)
-           generator (compile-operators->generator ops)
+           generator (compile-operators ops)
            ordered? (ordered? (generator))
-
            wrapper *operator-wrapper*
            top-level-generator *top-level-generator*
            now-fn *now-fn*]
