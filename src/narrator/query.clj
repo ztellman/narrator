@@ -3,14 +3,15 @@
     [potemkin])
   (:require
     [clojure.core.reducers :as r]
-    [narrator.operators :as op]
+    [narrator.core :as c]
     [narrator.executor :as ex]))
 
 ;;;
 
 (defn- query-seq-
   [op
-   ^long start-time
+   current-time
+   start-time
    {:keys [period timestamp value]
     :or {value identity
          timestamp (constantly 0)
@@ -19,23 +20,24 @@
    s]
   (when-not (empty? s)
     (lazy-seq
-      (let [end (long (+ start-time (long period)))
+      (reset! current-time start-time)
+      (let [end (long (+ start-time period))
             s (loop [s s]
                 (when-not (empty? s)
                   (let [x (first s)
                         t (long (timestamp x))]
                     (if (< t end)
                       (do
-                        (op/process! op x)
+                        (c/process! op x)
                         (recur (rest s)))
                       s))))]
-        (op/flush-operator op)
+        (c/flush-operator op)
         (cons
           {:timestamp end
            :value (let [x @op]
-                    (op/reset-operator! op)
+                    (c/reset-operator! op)
                     x)}
-          (query-seq- op end options s))))))
+          (query-seq- op current-time end options s))))))
 
 (defn query-seq
   ([query-descriptor s]
@@ -50,18 +52,21 @@
           block-size 1024}
      :as options}
     s]
-     (let [
-           generator (op/operators->generator query-descriptor)
-           ordered? (op/ordered? (generator))
-           semaphore (ex/semaphore)]
-       (binding [op/*operator-wrapper* (fn [op hash]
+     (let [op (c/compile-operators query-descriptor)
+           ordered? (c/ordered? op)
+           semaphore (ex/semaphore)
+           start-time (or start-time (timestamp (first s)))
+           current-time (atom start-time)]
+       (binding [c/*now-fn* #(deref current-time)
+                 c/*operator-wrapper* (fn [op hash]
                                          (ex/buffered-aggregator
                                            :semaphore semaphore
                                            :operator op
                                            :hash hash
                                            :capacity block-size))]
          (query-seq-
-           (generator)
+           op
+           current-time
            (timestamp (first s))
            options
            s)))))

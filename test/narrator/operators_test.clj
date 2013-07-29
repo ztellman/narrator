@@ -1,9 +1,9 @@
 (ns narrator.operators-test
+  (:use
+    [clojure test]
+    [narrator core operators])
   (:require
-    [clojure.test :refer :all]
-    [criterium.core :as c]
-    [narrator.executor :as ex]
-    [narrator.operators :refer :all]))
+    [criterium.core :as c]))
 
 (deftest ^:benchmark benchmark-operators
   (println "rate")

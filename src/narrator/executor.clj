@@ -2,11 +2,11 @@
   (:use
     [potemkin])
   (:require
-    [narrator.operators :as op])
+    [narrator.core :as c])
   (:import
     [java.util
      ArrayList]
-    [narrator.operators
+    [narrator.core
      IBufferedAggregator]
     [java.util.concurrent
      ConcurrentHashMap
@@ -165,27 +165,27 @@
         flush (fn flush [acc sync?]
                 (when (compare-and-set! acc-ref acc (accumulator capacity))
                   (if sync?
-                    (op/process-all! operator (seq acc))
+                    (c/process-all! operator (seq acc))
                     (submit
-                      #(op/process-all! operator (seq acc))
+                      #(c/process-all! operator (seq acc))
                       semaphore
                       (if hash
                         (rem hash num-cores)
                         (rand-int num-cores))))))]
     (reify
-      op/StreamOperator
+      c/StreamOperator
       (aggregator? [_] true)
-      (ordered? [_] (op/ordered? operator))
-      (reset-operator! [_] (op/reset-operator! operator))
+      (ordered? [_] (c/ordered? operator))
+      (reset-operator! [_] (c/reset-operator! operator))
       (process-all! [this msgs]
         (doseq [msg msgs]
-          (op/process! this msg)))
+          (c/process! this msg)))
       
       IBufferedAggregator
       (flush-operator [_]
         (with-exclusive-lock semaphore
           (flush @acc-ref true)
-          (op/flush-operator operator)))
+          (c/flush-operator operator)))
       (process! [this msg]
         (loop []
           (let [acc @acc-ref]
