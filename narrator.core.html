@@ -22,7 +22,7 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-accumulator">accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators">compile-operators</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators*">compile-operators*</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-defn-operator">defn-operator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-map-op">map-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-mapcat-op">mapcat-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-now">now</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-reducer-op">reducer-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-split">split</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-aggregator">stream-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-reducer">stream-reducer</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-accumulator">accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators">compile-operators</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators*">compile-operators*</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-map-op">map-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-mapcat-op">mapcat-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-now">now</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-reducer-op">reducer-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-split">split</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-aggregator">stream-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-reducer">stream-reducer</a></li>
         </ul>
       </div>
     </navigation>
@@ -57,15 +57,6 @@ stream operator that is the composition of all described operators.</p>
             
             <div class="doc"><p>Given a descriptor of stream operations, returns an instance of an operator that is the
 composition of all operations.</p>
-</div>
-          </div><div class="public">
-            <h3><a id="var-defn-operator" class="source var-name" href="/src/narrator/core.clj">defn-operator</a></h3>
-            <h4 class="var-type macro" id="var-type">macro</h4>
-            <div class="usage">[name &amp; rest]</div>
-            
-            
-            <div class="doc"><p>A variant of <code>defn</code> which is used to define a funciton which, given arguments,
-returns a stream operator.</p>
 </div>
           </div><div class="public">
             <h3><a id="var-map-op" class="source var-name" href="/src/narrator/core.clj">map-op</a></h3>
@@ -120,15 +111,14 @@ function that returns a description of all messages it has seen.</p>
 
 <p>Optional parameters are:</p>
 
-<p><code>ordered?</code> - if true, messagse will be given in order on a single thread, defaults to false
-<code>reset</code> - a no-arg function which resets internal state
+<p><code>reset</code> - a no-arg function which resets internal state
 <code>flush</code> - a no-arg function which flushes any messages which are currently buffered
-<code>combiner</code> - a single-arg function which takes a sequence of dereferenced values and returns a single value.  This is only valid if <code>ordered?</code> is false.</p>
+<code>combiner</code> - a single-arg function which takes a sequence of dereferenced values and returns a single value.  This is only valid if the aggregator is unordered.</p>
 </div>
           </div><div class="public">
             <h3><a id="var-stream-reducer" class="source var-name" href="/src/narrator/core.clj">stream-reducer</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[&amp; {:keys [reset ordered? reducer], :or {ordered? false}}]</div>
+            <div class="usage">[&amp; {:keys [reset reducer]}]</div>
             
             
             <div class="doc"><p>A stream operator which for each message emits zero or more messages.  It must be given
@@ -136,8 +126,7 @@ a <code>reducer</code> parameter, which describes the reducer function that proc
 
 <p>Optional parameters are:</p>
 
-<p><code>ordered?</code> - if true, messages will be given in order on a single thread, defaults to false
-<code>reset</code> - a no-arg function which can be used to reset internal state, if it exists</p>
+<p><code>reset</code> - a no-arg function which can be used to reset internal state, if it exists</p>
 </div>
           </div>
         </div>
