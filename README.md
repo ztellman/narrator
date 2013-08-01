@@ -86,7 +86,7 @@ We can also split on arbitrary fields within the data:
 {3 251, 1 251, 2 251, 0 251}
 ```
 
-Here we've used `by` to split the stream along a facet defined by the given function, and then applied the given operators to each subset of the data.
+Here we've used `group-by` to split the stream along a facet defined by the given function, and then applied the given operators to each subset of the data.
 
 The structural query descriptors work great when we know the structure of the data ahead of time, but what about when the structure is nested, even arbitrarily so?  In these cases, we can use `recur`, which feeds the messages back into the same descriptor:
 
