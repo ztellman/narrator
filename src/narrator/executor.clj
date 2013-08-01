@@ -8,7 +8,8 @@
     [java.util
      ArrayList]
     [narrator.core
-     IBufferedAggregator]
+     IBufferedAggregator
+     StreamOperator]
     [java.util.concurrent
      ConcurrentHashMap
      Semaphore
@@ -173,10 +174,9 @@
                         (rem hash num-cores)
                         (r/rand-int num-cores))))))]
     (reify
-      c/StreamOperator
-      (aggregator? [_] true)
-      (ordered? [_] (c/ordered? operator))
-      (reset-operator! [_] (c/reset-operator! operator))
+      StreamOperator
+      (reset-operator! [_]
+        (c/reset-operator! operator))
       (process-all! [this msgs]
         (doseq [msg msgs]
           (c/process! this msg)))

@@ -12,13 +12,23 @@
   (process! [_ msg])
   (flush-operator [_]))
 
-(defprotocol+ StreamOperator
+(definterface+ StreamOperatorGenerator
   (aggregator? [_])
   (ordered? [_])
+  (^:private create- [_ hash])
+  (descriptor [_]))
+
+(definterface+ StreamOperator
   (reducer [_])
   (combiner [_])
   (reset-operator! [_])
   (process-all! [_ msgs]))
+
+(defn create
+  ([generator]
+     (create generator nil))
+  ([generator hash]
+     (create- generator hash)))
 
 ;;;
 
@@ -28,17 +38,21 @@
 
    Optional parameters are:
 
-   `ordered?` - if true, messages will be given in order on a single thread, defaults to false
    `reset` - a no-arg function which can be used to reset internal state, if it exists"
-  [& {:keys [reset ordered? reducer]
-      :or {ordered? false}}]
+  [& {:keys [reset reducer]}]
   (assert reducer)
   (reify StreamOperator
-    (aggregator? [_] false)
-    (combiner [_] nil)
-    (ordered? [_] ordered?)
     (reset-operator! [_] (when reset (reset)))
     (reducer [_] reducer)))
+
+(defn stream-reducer-generator
+  [& {:keys [ordered? create descriptor]}]
+  (assert create)
+  (reify StreamOperatorGenerator
+    (aggregator? [_] false)
+    (ordered? [_] ordered?)
+    (create- [_ hash] (create hash))
+    (descriptor [_] descriptor)))
 
 (defn stream-aggregator
   "A stream operator which accepts messages, and can be dereferenced to get a description of
@@ -48,20 +62,17 @@
 
    Optional parameters are:
 
-   `ordered?` - if true, messagse will be given in order on a single thread, defaults to false
    `reset` - a no-arg function which resets internal state
    `flush` - a no-arg function which flushes any messages which are currently buffered
-   `combiner` - a single-arg function which takes a sequence of dereferenced values and returns a single value.  This is only valid if `ordered?` is false.
+   `combiner` - a single-arg function which takes a sequence of dereferenced values and returns a single value.  This is only valid if the aggregator is unordered.
    "
   [& {:keys [reset process flush deref ordered? combiner]
       :or {ordered? false}
       :as args}]
   (assert (and process deref))
-  (assert (or (not ordered?) (not combiner)))
   (reify
     StreamOperator
-    (aggregator? [_] true)
-    (ordered? [_] ordered?)
+    (reducer [_] nil)
     (combiner [_] combiner)
     (reset-operator! [_] (when reset (reset)))
     (process-all! [_ msgs] (process msgs))
@@ -75,58 +86,41 @@
                  (combiner [(deref)])
                  (deref)))))
 
-(defmacro generator [& body]
-  `(with-meta (fn [] ~@body) {::stream-generator true}))
-
-(defn generator? [x]
-  (-> x meta ::stream-generator))
+(defn stream-aggregator-generator
+  [& {:keys [ordered? create descriptor]}]
+  (assert create)
+  (reify StreamOperatorGenerator
+    (aggregator? [_] true)
+    (ordered? [_] ordered?)
+    (create- [_ hash] (create hash))
+    (descriptor [_] descriptor)))
 
 (defn map-op
   "Returns an unordered stream operator that maps `f` over every message."
   [f]
-  (generator
-    (stream-reducer
-      :reducer (r/map f)
-      :ordered? false)))
+  (stream-reducer-generator
+    :ordered? false
+    :create (constantly
+              (stream-reducer
+                :reducer (r/map f)))))
 
 (defn mapcat-op
   "Returns an unordered stream operator that mapcats `f` over every message."
   [f]
-  (generator
-    (stream-reducer
-      :reducer (r/mapcat f)
-      :ordered? false)))
+  (stream-reducer-generator
+    :ordered? false
+    :create (constantly
+              (stream-reducer
+                :reducer (r/mapcat f)))))
 
 (defn reducer-op
   "Returns an unordered stream operator that applies the reducer `f` over the message stream."
   [f]
-  (generator
-    (stream-reducer
-      :reducer f
-      :ordered? false)))
-
-(defonce stream-operators (atom {}))
-
-(defmacro defn-operator
-  "A variant of `defn` which is used to define a funciton which, given arguments,
-  returns a stream operator."
-  [name & rest]
-  (let [f (macroexpand
-            `(defn ~name ~@rest))]
-    `(do
-       (~@(take-while (complement seq?) f)
-        ~(let [fn-form (last f)]
-           `(~@(take-while (complement seq?) fn-form)
-             ~@(map
-                 (fn [[args & body]]
-                   `(~args (generator ~@body)))
-                 (drop-while (complement seq?) fn-form)))))
-       (alter-var-root (var ~name)
-         (fn [f#]
-           (with-meta f#{::stream-operator true})))
-       (alter-meta! (var ~name) assoc ::stream-operator true)
-       (swap! stream-operators assoc ~(str name) (var ~name))
-       (var ~name))))
+  (stream-reducer-generator
+    :ordered? false
+    :create (constantly
+              (stream-reducer
+                :reducer f))))
 
 ;;;
 
@@ -141,32 +135,35 @@
 
 ;;;
 
+(defmacro defn-operator [name & rest]
+  `(do
+     (defn ~name ~@rest)
+     (alter-meta! (var ~name) assoc ::generator-generator true)
+     (alter-var-root (var ~name) (fn [f#] (with-meta f# {::generator-generator true})))
+     (var ~name)))
+
 (def ^:dynamic *operator-wrapper* (fn [x _] x))
 
-(def ^:dynamic *top-level-generator*)
+(def ^:dynamic *top-level-generator* nil)
+
+(defn top-level-generator []
+  (when *top-level-generator*
+    @*top-level-generator*))
 
 (defn- ->stream-reducer [x]
-  (if (aggregator? x)
-    (r/map #(do (process! x %) (flush-operator x) @x))
-    (reducer x)))
-
-(defn- unroll-generators [x]
-  (->> x
-    (iterate #(%))
-    (take-while generator?)
-    last))
+  (or
+    (reducer x)
+    (r/map #(do (process! x %) (flush-operator x) @x))))
 
 (declare accumulator split)
 
 (defn- ->operator-generator [x]
-  (unroll-generators
-    (cond
-      (satisfies? StreamOperator x) x
-      (-> x meta ::stream-generator) x
-      (-> x meta ::stream-operator) (x)
-      (map? x) (split x)
-      (ifn? x) (map-op x)
-      :else (throw (IllegalArgumentException. (str "Don't know how to handle " (pr-str x)))))))
+  (cond
+    (instance? StreamOperatorGenerator x) x
+    (-> x meta ::generator-generator) (x)
+    (map? x) (split x)
+    (ifn? x) (map-op x)
+    :else (throw (IllegalArgumentException. (str "Don't know how to handle " (pr-str x))))))
 
 (defn compile-operators
   "Takes a descriptor of stream operations, and returns a function that generates a single
@@ -175,87 +172,90 @@
   (if-not (sequential? op-descriptor)
     (compile-operators [op-descriptor])
     (let [generators (map ->operator-generator op-descriptor)
-          gen+instances (map #(list % (%)) generators)
-          ordered? (->> gen+instances
-                     (map second)
-                     (some ordered?)
-                     boolean)
-          [pre [aggr & post]] [(->> gen+instances
-                                 (take-while (comp (complement aggregator?) second))
-                                 (map first))
-                               (->> gen+instances
-                                 (drop-while (comp (complement aggregator?) second))
-                                 (map first))]]
+          ordered? (boolean (some ordered? generators))
+          [pre [aggr & post]] [(take-while (complement aggregator?) generators)
+                               (drop-while (complement aggregator?) generators)]]
       (if-not aggr
         (compile-operators
           (concat op-descriptor [(accumulator)]))
-        (fn this
-          ([]
-             (this nil))
-          ([hash]
-             (binding [*top-level-generator* (or *top-level-generator* this)]
-               (let [pre (map #(%) pre)
-                     aggr (aggr)
-                     post (map #(%) post)
-                     ops (concat pre [aggr] post)
-                     pre (when (seq pre)
-                           (->> pre
-                             (map ->stream-reducer)
-                             reverse
-                             (apply comp)))
-                     post (when (seq post)
-                            (->> post
-                              (map ->stream-reducer)
-                              reverse
-                              (apply comp)))
-                     deref-fn (if post
-                                #(first (into [] (post [@aggr])))
-                                #(deref aggr))
-                     process-fn (if pre
-                                  (if ordered?
-                                    #(process-all! aggr (into [] (pre %)))
-                                    #(process-all! aggr (r/foldcat (pre %))))
-                                  #(process-all! aggr %))
-                     flush-ops (filter #(instance? IBufferedAggregator %) ops)]
-                 (*operator-wrapper*
-                   (stream-aggregator
-                     :ordered? ordered?
-                     :reset #(doseq [r ops] (reset-operator! r))
-                     :flush #(doseq [r flush-ops] (flush-operator r))
-                     :deref deref-fn
-                     :process process-fn)
-                   (or hash (when ordered? (rand-int Integer/MAX_VALUE))))))))))))
+        (let [generator (promise)]
+          (deliver generator
+            (stream-aggregator-generator
+              :descriptor op-descriptor
+              :ordered? ordered?
+              :create (fn [hash]
+                        (binding [*top-level-generator* (or *top-level-generator* @generator)]
+                          (let [pre (map create pre)
+                                aggr (create aggr)
+                                post (map create post)
+                                ops (concat pre [aggr] post)
+                                pre (when (seq pre)
+                                      (->> pre
+                                        (map ->stream-reducer)
+                                        reverse
+                                        (apply comp)))
+                                post (when (seq post)
+                                       (->> post
+                                         (map ->stream-reducer)
+                                         reverse
+                                         (apply comp)))
+                                deref-fn (if post
+                                           #(first (into [] (post [@aggr])))
+                                           #(deref aggr))
+                                process-fn (if pre
+                                             (if ordered?
+                                               #(process-all! aggr (into [] (pre %)))
+                                               #(process-all! aggr (r/foldcat (pre %))))
+                                             #(process-all! aggr %))
+                                flush-ops (filter #(instance? IBufferedAggregator %) ops)]
+                            (*operator-wrapper*
+                              (stream-aggregator
+                                :ordered? ordered?
+                                :reset #(doseq [r ops] (reset-operator! r))
+                                :flush #(doseq [r flush-ops] (flush-operator r))
+                                :deref deref-fn
+                                :process process-fn)
+                              (or hash (when ordered? (rand-int Integer/MAX_VALUE)))))))))
+          @generator)))))
 
 (defn compile-operators*
   "Given a descriptor of stream operations, returns an instance of an operator that is the
    composition of all operations."
   [op-descriptor]
-  ((compile-operators op-descriptor)))
+  (create (compile-operators op-descriptor)))
 
 ;;;
 
 (defn-operator accumulator
   "Yields a list of all messages seen since it has been reset."
   []
-  (let [acc (atom (ArrayList.))]
-    (stream-aggregator
-      :process #(locking acc (.addAll ^ArrayList @acc %))
-      :deref #(deref acc)
-      :reset #(clojure.core/reset! acc (ArrayList.))
-      :combiner #(apply concat %))))
+  (stream-aggregator-generator
+    :ordered? true
+    :create (fn [_]
+              (let [acc (atom (ArrayList.))]
+                (stream-aggregator
+                  :process #(locking acc (.addAll ^ArrayList @acc %))
+                  :deref #(deref acc)
+                  :reset #(clojure.core/reset! acc (ArrayList.))
+                  :combiner #(apply concat %))))))
 
 (defn-operator split
   ""
   [name->ops]
   (let [ks (keys name->ops)
-        ops (map compile-operators* (vals name->ops))]
-    (stream-aggregator
-      :ordered? (boolean (some ordered? ops))
-      :process (fn [msgs]
-                 (doseq [op ops]
-                   (process-all! op msgs)))
-      :flush #(doseq [x ops]
-                (flush-operator x))
-      :deref #(zipmap ks (map deref ops))
-      :reset #(doseq [x ops]
-                (reset-operator! x)))))
+        ops (map compile-operators (vals name->ops))
+        ordered? (boolean (some ordered? ops))]
+    (stream-aggregator-generator
+      :descriptor name->ops
+      :ordered? ordered?
+      :create (fn [_]
+                (let [ops (doall (map create ops))]
+                  (stream-aggregator
+                    :process (fn [msgs]
+                               (doseq [op ops]
+                                 (process-all! op msgs)))
+                    :flush #(doseq [x ops]
+                              (flush-operator x))
+                    :deref #(zipmap ks (map deref ops))
+                    :reset #(doseq [x ops]
+                              (reset-operator! x))))))))

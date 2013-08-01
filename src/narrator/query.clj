@@ -33,7 +33,7 @@
                                        (if (p/< idx cnt)
                                          (let [x (.nth c idx)
                                                t (long (timestamp x))]
-                                           (if (< t end)
+                                           (if (p/< t end)
                                              (do
                                                (c/process! op x)
                                                (recur (p/inc idx)))
@@ -52,7 +52,7 @@
                     ;; non-chunked seq
                     (let [x (first s)
                           t (long (timestamp x))]
-                      (if (< t end)
+                      (if (p/< t end)
                         (do
                           (c/process! op x)
                           (recur (rest s)))
@@ -89,8 +89,7 @@
                                            :operator op
                                            :hash hash
                                            :capacity block-size))]
-         (let [op (c/compile-operators* query-descriptor)
-               ordered? (c/ordered? op)]
+         (let [op (c/compile-operators* query-descriptor)]
            (query-seq-
              op
              current-time
