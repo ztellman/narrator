@@ -7,8 +7,7 @@
      [time :as t]]
     [primitive-math :as p]
     [narrator.core :as c]
-    [narrator.executor :as ex]
-    [clojure.core.async :as a]))
+    [narrator.executor :as ex]))
 
 ;;;
 
@@ -43,7 +42,7 @@
    {:keys [period timestamp value]
     :or {value identity
          timestamp (constantly 0)
-         period 1}
+         period Long/MAX_VALUE}
     :as options}
    s]
   (when-not (empty? s)
@@ -95,86 +94,124 @@
           (query-seq- op current-time end options s))))))
 
 (defn query-seq
+  "Applies the `query-descriptor` to the sequence of messages.  If `:timestamp` and `:period` are specified, then returns
+   a sequence of maps containing `:timestamp` and `:value` entries, representing the output of the query between that
+   timestamp and the previous one.  If they are not specified, then a single result is returned, representing the consumption
+   of the entire sequence.
+
+       (query-seq rate (range 10)) => 10
+
+       (query-seq rate {:period 5, :timestamp identity} (range 10)) => ({:timestamp 5, :value 5} {:timestamp 10, :value 5})
+
+   This behaves lazily; elements of the input seq will only be consumed when elements from the output seq are consumed.
+
+   Optional arguments:
+
+   `start-time` - the beginning of time, defaults to the timestamp of the first element
+   `value` - the actual payload of the incoming messages that should be queried, defaults to `identity`
+   `buffer?` - if true, messages are not immediately processed, and may be processed in parallel, defaults to true
+   `block-size` - the size of the messages buffers, defaults to 1024"
   ([query-descriptor s]
-     (-> (query-seq query-descriptor nil s)
-       first
-       :value))
+     (query-seq query-descriptor nil s))
   ([query-descriptor
     {:keys [start-time period timestamp value buffer? block-size]
-     :or {value identity
-          timestamp (constantly 0)
-          period 1}
+     :or {value identity}
      :as options}
     s]
-     (let [start-time (or start-time (timestamp (first s)))
-           current-time (atom start-time)]
-       (query-seq-
-         (create-operator query-descriptor (assoc options :now #(deref current-time)))
-         current-time
-         (timestamp (first s))
-         options
-         s))))
+     (let [start-time (or start-time (if timestamp (timestamp (first s)) 0))
+           current-time (atom start-time)
+           transform (if (and period timestamp)
+                       identity
+                       #(first (map :value %)))]
+       (transform
+         (query-seq-
+           (create-operator query-descriptor (assoc options :now #(deref current-time)))
+           current-time
+           start-time
+           options
+           s)))))
 
 ;;;
 
-(defn seq->channel [s]
-  (let [out (a/chan)]
-    (a/go
-      (loop [s s]
-        (when-not (empty? s)
-          (a/>! out (first s))
-          (recur (rest s))))
-      (a/close! out))
-    out))
+(defmacro ^:private when-core-async [& body]
+  (when (try
+        (require '[clojure.core.async :as a])
+        true
+        (catch Exception _
+          false))
+    `(do ~@body)))
 
-(defn channel->seq [ch]
-  (lazy-seq
-    (let [msg (a/<!! ch)]
-      (when-not (nil? msg)
-        (cons msg (channel->seq ch))))))
+(when-core-async
 
-(defn query-channel
-  [query-descriptor
-   {:keys [period timestamp value buffer? block-size]
-    :or {value identity
-         period Long/MAX_VALUE}
-    :as options}
-   ch]
-  (let [out (a/chan)
-        current-time (atom (when-not timestamp (System/currentTimeMillis)))
-        op (create-operator query-descriptor (assoc options :now #(deref current-time)))]
-    (if-not timestamp
-      (let [stop (a/chan)
-            flush (a/chan)]
+  (defn query-channel
+    "Behaves like `query-seq`, except that the input is assumed to be a core.async channel, and the return value is also
+     a core.async channel.  A `:period` must be provided.  If no `:timestamp` is given, then the analysis will occur in
+     realtime, emitting query results  periodically without any timestamp.  If `:timestamp` is given, then it will emit
+     maps with `:timestamp` and `:value` entries whenever a period elapses in the input stream."
+    [query-descriptor
+     {:keys [period timestamp value start-time buffer? block-size]
+      :or {value identity
+           period Long/MAX_VALUE}
+      :as options}
+     ch]
+    (assert period "A :period must be specified.")
+    (let [out (a/chan)
+          now #(System/currentTimeMillis)
+          current-time (atom (when-not timestamp (now)))
+          op (create-operator query-descriptor (assoc options :now #(deref current-time)))]
+      (if-not timestamp
 
-        ;; set up periodic flushing
+        ;; process everything in realtime
         (a/go
-          (loop []
-            (let [v (a/alt!
-                     (a/timeout period) true
-                     stop false)]
-              (when v
-                (a/>! flush true)
-                (recur)))))
-
-        ;; handle incoming messages
-        (a/go
-          (loop []
+          (loop
+            [next-flush (+ @current-time period)
+             flush-signal (a/timeout period)]
             (let [msg (a/alt!
-                        flush ::flush
+                        flush-signal ::flush
                         ch ([msg _] msg))]
               (if (or (nil? msg) (identical? ::flush msg))
+
+                ;; flush 
                 (do
                   (c/flush-operator op)
-                  (reset! current-time (System/currentTimeMillis))
+                  (reset! current-time (now))
                   (let [x @op]
                     (c/reset-operator! op)
                     (a/>! out x)
                     (when-not (nil? msg)
-                      (recur))))
-                (when-not (nil? msg)
-                  (c/process! op msg)
-                  (recur)))))
-          (a/>! stop true))))
-    out))
-    
+                      (recur
+                        (+ next-flush period)
+                        (a/timeout (- period (- (now) next-flush)))))))
+
+                ;; process
+                (do
+                  (c/process! op (value msg))
+                  (recur next-flush flush-signal))))))
+
+        ;; go on timestamps of messages
+        (a/go
+          (loop
+            [next-flush (when start-time (+ start-time period))]
+            (let [msg (a/<! ch)]
+              (let [next-flush (or next-flush
+                                 (when-not (nil? msg)
+                                   (+ (timestamp msg) period)))]
+                (if (or (nil? msg) (>= (timestamp msg) next-flush))
+
+                  ;; flush 
+                  (do
+                    (c/flush-operator op)
+                    (reset! current-time next-flush)
+                    (let [x @op]
+                      (c/reset-operator! op)
+                      (a/>! out {:timestamp (or next-flush 0) :value x})
+                      (when-not (nil? msg)
+                        (c/process! op (value msg))
+                        (recur (+ next-flush period)))))
+                  
+                  ;; process
+                  (do
+                    (c/process! op (value msg))
+                    (recur next-flush))))))))
+      out)))
+

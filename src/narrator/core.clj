@@ -170,16 +170,16 @@
     (compile-operators [op-descriptor])
     (let [generators (map ->operator-generator op-descriptor)
           [pre [aggr & post]] [(take-while (complement aggregator?) generators)
-                               (drop-while (complement aggregator?) generators)]
-          aggr (*aggregator-generator-wrapper* aggr)
-          ordered? (or
-                     (some ordered? pre)
-                     (ordered? aggr))
-          agg-combiner (or (combiner aggr) first)]
+                               (drop-while (complement aggregator?) generators)]]
       (if-not aggr
         (compile-operators
           (concat op-descriptor [(accumulator)]))
-        (let [generator (promise)]
+        (let [generator (promise)
+              aggr (*aggregator-generator-wrapper* aggr)
+              ordered? (or
+                         (some ordered? pre)
+                         (ordered? aggr))
+              agg-combiner (or (combiner aggr) first)]
           (deliver generator
             (stream-aggregator-generator
               :descriptor op-descriptor

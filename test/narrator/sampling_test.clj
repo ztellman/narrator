@@ -2,7 +2,7 @@
   (:use
     [clojure test]
     [narrator core query]
-    [narrator.utils
+    [narrator.operators
      sampling])
   (:require
     [criterium.core :as c]))
