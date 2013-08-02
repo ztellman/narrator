@@ -61,7 +61,7 @@
          :ordered? (ordered? generator)
          :create (fn []
                    (let [m (ConcurrentHashMap.)
-                         wrapper *operator-wrapper*
+                         wrapper *compiled-operator-wrapper*
                          now-fn *now-fn*
                          top-level-generator *top-level-generator*]
                      (stream-aggregator
@@ -71,7 +71,7 @@
                                     (let [k (de-nil (facet msg))]
                                       (if-let [op (.get m k)]
                                         (process! op msg)
-                                        (binding [*operator-wrapper* wrapper
+                                        (binding [*compiled-operator-wrapper* wrapper
                                                   *now-fn* now-fn
                                                   *top-level-generator* top-level-generator
                                                   *execution-affinity* (when ordered? (hash k))]
@@ -108,4 +108,6 @@
 (import-vars
   [narrator.utils.sampling
    sample
-   moving-sample])
+   moving-sample
+   quantiles
+   moving-quantiles])

@@ -5,7 +5,7 @@
             :url ""}
   :dependencies [[potemkin "0.3.1"]
                  [org.codehaus.jsr166-mirror/jsr166y "1.7.0"]
-                 [primitive-math "0.1.2"]]
+                 [primitive-math "0.1.3-SNAPSHOT"]]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.5.1"]
                                   [criterium "0.4.1"]
                                   [codox-md "0.2.0" :exclusions [org.clojure/clojure]]]}}

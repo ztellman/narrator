@@ -2,6 +2,7 @@
   (:use
     [potemkin])
   (:require
+    [narrator.utils.rand :as r]
     [primitive-math :as p]
     [narrator.core :as c]
     [narrator.executor :as ex]))
@@ -83,22 +84,24 @@
            current-time (atom start-time)
            semaphore (ex/semaphore)]
        (binding [c/*now-fn* #(deref current-time)
-                 c/*operator-wrapper* (fn [op]
-                                         (ex/buffered-aggregator
-                                           :semaphore semaphore
-                                           :operator op
-                                           :capacity block-size))
-                 c/*aggregator-creator* (fn [gen]
-                                          (if (and (c/ordered? gen) (c/combiner gen))
-                                            (ex/thread-local-aggregator gen)
-                                            (c/create gen)))]
-         (let [op (c/compile-operators* query-descriptor)]
-           (query-seq-
-             op
-             current-time
-             (timestamp (first s))
-             options
-             s))))))
+                 c/*compiled-operator-wrapper* (fn [op]
+                                                 (ex/buffered-aggregator
+                                                   :semaphore semaphore
+                                                   :operator op
+                                                   :capacity block-size))
+                 c/*aggregator-generator-wrapper* (fn [gen]
+                                                    (if (and (c/ordered? gen) (c/combiner gen))
+                                                      (ex/thread-local-aggregator gen)
+                                                      gen))]
+         (let [gen (c/compile-operators query-descriptor)]
+           (binding [c/*execution-affinity* (when (c/ordered? gen)
+                                              (r/rand-int Integer/MAX_VALUE))]
+             (query-seq-
+               (c/create gen)
+               current-time
+               (timestamp (first s))
+               options
+               s)))))))
 
     
     

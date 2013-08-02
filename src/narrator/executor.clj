@@ -202,28 +202,22 @@
 ;;;
 
 (defn thread-local-aggregator
-  [& {:keys [generator]}]
-  (let [m (ConcurrentHashMap.)]
-    (reify
-      StreamOperator
-      (reset-operator! [_]
-        (doseq [op (vals m)]
-          (c/reset-operator! op)))
-      (process-all! [this msgs]
-        (let [id (.getId (Thread/currentThread))]
-          (if-let [op (.get m id)]
-            (c/process-all! op msgs)
-            (let [op (generator)]
-              (.putIfAbsent m id op)
-              (c/process-all! op msgs)))))
-
-      IBufferedAggregator
-      (flush-operator [_])
-      (process! [this msg] (c/process-all! this [msg]))
-
-      clojure.lang.IDeref
-      (deref [_]
-        (let [combiner (c/combiner generator)]
-          (->> m vals (map deref) combiner))))))
+  [generator]
+  (c/stream-aggregator-generator
+    :ordered? false
+    :create (fn []
+              (let [m (ConcurrentHashMap.)]
+                (c/stream-aggregator
+                  :reset (fn []
+                           (doseq [op (vals m)]
+                             (c/reset-operator! op)))
+                  :process #(let [id (.getId (Thread/currentThread))]
+                              (if-let [op (.get m id)]
+                                (c/process-all! op %)
+                                (let [op (c/create generator)]
+                                  (.putIfAbsent m id op)
+                                  (c/process-all! op %))))
+                  :deref #(let [combiner (c/combiner generator)]
+                            (->> m vals (map deref) combiner)) )))))
 
 

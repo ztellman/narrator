@@ -135,9 +135,9 @@
      (alter-var-root (var ~name) (fn [f#] (with-meta f# {::generator-generator true})))
      (var ~name)))
 
-(def ^:dynamic *operator-wrapper* identity)
+(def ^:dynamic *compiled-operator-wrapper* identity)
 (def ^:dynamic *top-level-generator* nil)
-(def ^:dynamic *aggregator-creator* (fn [& args] (apply create args)))
+(def ^:dynamic *aggregator-generator-wrapper* identity)
 (def ^:dynamic *execution-affinity* nil)
 
 (defn top-level-generator []
@@ -169,9 +169,13 @@
   (if-not (sequential? op-descriptor)
     (compile-operators [op-descriptor])
     (let [generators (map ->operator-generator op-descriptor)
-          ordered? (boolean (some ordered? generators))
           [pre [aggr & post]] [(take-while (complement aggregator?) generators)
-                               (drop-while (complement aggregator?) generators)]]
+                               (drop-while (complement aggregator?) generators)]
+          aggr (*aggregator-generator-wrapper* aggr)
+          ordered? (or
+                     (some ordered? pre)
+                     (ordered? aggr))
+          agg-combiner (or (combiner aggr) first)]
       (if-not aggr
         (compile-operators
           (concat op-descriptor [(accumulator)]))
@@ -182,8 +186,7 @@
               :ordered? ordered?
               :create (fn []
                         (binding [*top-level-generator* (or *top-level-generator* @generator)]
-                          (let [agg-combiner (or (combiner aggr) first)
-                                aggr (*aggregator-creator* aggr)
+                          (let [aggr (create aggr)
                                 pre (map create-stream-reducer pre)
                                 post (map create-stream-reducer post)
                                 ops (concat pre [aggr] post)
@@ -200,7 +203,7 @@
                                                #(process-all! aggr (r/foldcat (pre %))))
                                              #(process-all! aggr %))
                                 flush-ops (filter #(instance? IBufferedAggregator %) ops)]
-                            (*operator-wrapper*
+                            (*compiled-operator-wrapper*
                               (stream-aggregator
                                 :ordered? ordered?
                                 :reset #(doseq [r ops] (reset-operator! r))
