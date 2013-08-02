@@ -20,8 +20,9 @@
   "Yields the number of messages seen since it has been reset."
   []
   (stream-aggregator-generator
+    :combiner #(apply + %)
     :ordered? false
-    :create (fn [_]
+    :create (fn []
               (let [cnt (AtomicLong. 0)]
                 (stream-aggregator
                   :process #(.addAndGet cnt (count %))
@@ -34,8 +35,9 @@
      (sum nil))
   ([options]
      (stream-aggregator-generator
+       :combiner #(apply + %)
        :ordered? false
-       :create (fn [_]
+       :create (fn []
                  (let [cnt (AtomicLong. 0)]
                    (stream-aggregator
                      :process #(.addAndGet cnt (reduce + %))
@@ -57,7 +59,7 @@
            re-nil #(if (identical? ::nil %) nil %)]
        (stream-aggregator-generator
          :ordered? (ordered? generator)
-         :create (fn [_]
+         :create (fn []
                    (let [m (ConcurrentHashMap.)
                          wrapper *operator-wrapper*
                          now-fn *now-fn*
@@ -71,8 +73,9 @@
                                         (process! op msg)
                                         (binding [*operator-wrapper* wrapper
                                                   *now-fn* now-fn
-                                                  *top-level-generator* top-level-generator]
-                                          (let [op (create generator (when ordered? (hash k)))
+                                                  *top-level-generator* top-level-generator
+                                                  *execution-affinity* (when ordered? (hash k))]
+                                          (let [op (create generator)
                                                 op (or (.putIfAbsent m k op) op)]
                                    (process! op msg)))))))
                        :flush #(doseq [x (vals m)]
@@ -91,8 +94,8 @@
   []
   (stream-aggregator-generator
     :ordered? false ;; we can assume this, and it doesn't change anything if we're wrong
-    :create (fn [hash]
-              (create *top-level-generator* hash))))
+    :create (fn []
+              (create *top-level-generator*))))
 
 (defn-operator filter
   [predicate]

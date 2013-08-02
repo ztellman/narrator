@@ -36,7 +36,7 @@
      (stream-aggregator-generator
        :ordered? false
        :create
-       (fn [_]
+       (fn []
          (let [lock (l/asymmetric-lock)
                samples (ConcurrentSkipListMap.)
                counter (AtomicLong. 0)
@@ -98,7 +98,7 @@
      (stream-aggregator-generator
        :ordered? false
        :create
-       (fn [_]
+       (fn []
          (let [sample-size (long sample-size)
                samples (AtomicReferenceArray. sample-size)
                counter (AtomicLong. 0)]

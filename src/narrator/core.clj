@@ -2,7 +2,8 @@
   (:use
     [potemkin])
   (:require
-    [clojure.core.reducers :as r])
+    [clojure.core.reducers :as r]
+    [narrator.utils.rand :as rand])
   (:import
     [java.util ArrayList]))
 
@@ -14,21 +15,15 @@
 
 (definterface+ StreamOperatorGenerator
   (aggregator? [_])
+  (combiner [_])
   (ordered? [_])
-  (^:private create- [_ hash])
+  (create [_])
   (descriptor [_]))
 
 (definterface+ StreamOperator
   (reducer [_])
-  (combiner [_])
   (reset-operator! [_])
   (process-all! [_ msgs]))
-
-(defn create
-  ([generator]
-     (create generator nil))
-  ([generator hash]
-     (create- generator hash)))
 
 ;;;
 
@@ -49,9 +44,10 @@
   [& {:keys [ordered? create descriptor]}]
   (assert create)
   (reify StreamOperatorGenerator
+    (combiner [_] nil)
     (aggregator? [_] false)
     (ordered? [_] ordered?)
-    (create- [_ hash] (create hash))
+    (create [_] (create))
     (descriptor [_] descriptor)))
 
 (defn stream-aggregator
@@ -64,16 +60,14 @@
 
    `reset` - a no-arg function which resets internal state
    `flush` - a no-arg function which flushes any messages which are currently buffered
-   `combiner` - a single-arg function which takes a sequence of dereferenced values and returns a single value.  This is only valid if the aggregator is unordered.
    "
-  [& {:keys [reset process flush deref ordered? combiner]
+  [& {:keys [reset process flush deref ordered?]
       :or {ordered? false}
       :as args}]
   (assert (and process deref))
   (reify
     StreamOperator
     (reducer [_] nil)
-    (combiner [_] combiner)
     (reset-operator! [_] (when reset (reset)))
     (process-all! [_ msgs] (process msgs))
 
@@ -82,17 +76,16 @@
     (flush-operator [_] (when flush (flush)))
     
     clojure.lang.IDeref
-    (deref [_] (if combiner
-                 (combiner [(deref)])
-                 (deref)))))
+    (deref [_] (deref))))
 
 (defn stream-aggregator-generator
-  [& {:keys [ordered? create descriptor]}]
+  [& {:keys [ordered? create descriptor combiner]}]
   (assert create)
   (reify StreamOperatorGenerator
+    (combiner [_] combiner)
     (aggregator? [_] true)
     (ordered? [_] ordered?)
-    (create- [_ hash] (create hash))
+    (create [_] (create))
     (descriptor [_] descriptor)))
 
 (defn map-op
@@ -142,18 +135,22 @@
      (alter-var-root (var ~name) (fn [f#] (with-meta f# {::generator-generator true})))
      (var ~name)))
 
-(def ^:dynamic *operator-wrapper* (fn [x _] x))
-
+(def ^:dynamic *operator-wrapper* identity)
 (def ^:dynamic *top-level-generator* nil)
+(def ^:dynamic *aggregator-creator* (fn [& args] (apply create args)))
+(def ^:dynamic *execution-affinity* nil)
 
 (defn top-level-generator []
   (when *top-level-generator*
     @*top-level-generator*))
 
-(defn- ->stream-reducer [x]
-  (or
-    (reducer x)
-    (r/map #(do (process! x %) (flush-operator x) @x))))
+(defn- create-stream-reducer [gen]
+  (if (aggregator? gen)
+    (let [reducer-fn (or (reducer gen) first)
+          op (create gen)]
+      (stream-reducer
+        :reducer (r/map #(do (process! op %) (flush-operator op) (reducer-fn [@op])))))
+    (create gen)))
 
 (declare accumulator split)
 
@@ -183,25 +180,20 @@
             (stream-aggregator-generator
               :descriptor op-descriptor
               :ordered? ordered?
-              :create (fn [hash]
+              :create (fn []
                         (binding [*top-level-generator* (or *top-level-generator* @generator)]
-                          (let [pre (map create pre)
-                                aggr (create aggr)
-                                post (map create post)
+                          (let [agg-combiner (or (combiner aggr) first)
+                                aggr (*aggregator-creator* aggr)
+                                pre (map create-stream-reducer pre)
+                                post (map create-stream-reducer post)
                                 ops (concat pre [aggr] post)
                                 pre (when (seq pre)
-                                      (->> pre
-                                        (map ->stream-reducer)
-                                        reverse
-                                        (apply comp)))
+                                      (->> pre (map reducer) reverse (apply comp)))
                                 post (when (seq post)
-                                       (->> post
-                                         (map ->stream-reducer)
-                                         reverse
-                                         (apply comp)))
+                                       (->> post (map reducer) reverse (apply comp)))
                                 deref-fn (if post
-                                           #(first (into [] (post [@aggr])))
-                                           #(deref aggr))
+                                           #(first (into [] (post [(agg-combiner [@aggr])])))
+                                           #(agg-combiner [(deref aggr)]))
                                 process-fn (if pre
                                              (if ordered?
                                                #(process-all! aggr (into [] (pre %)))
@@ -214,8 +206,7 @@
                                 :reset #(doseq [r ops] (reset-operator! r))
                                 :flush #(doseq [r flush-ops] (flush-operator r))
                                 :deref deref-fn
-                                :process process-fn)
-                              (or hash (when ordered? (rand-int Integer/MAX_VALUE)))))))))
+                                :process process-fn)))))))
           @generator)))))
 
 (defn compile-operators*
@@ -231,25 +222,24 @@
   []
   (stream-aggregator-generator
     :ordered? true
-    :create (fn [_]
+    :create (fn []
               (let [acc (atom (ArrayList.))]
                 (stream-aggregator
                   :process #(locking acc (.addAll ^ArrayList @acc %))
                   :deref #(deref acc)
-                  :reset #(clojure.core/reset! acc (ArrayList.))
-                  :combiner #(apply concat %))))))
+                  :reset #(clojure.core/reset! acc (ArrayList.)))))))
 
 (defn-operator split
   ""
   [name->ops]
   (let [ks (keys name->ops)
-        ops (map compile-operators (vals name->ops))
-        ordered? (boolean (some ordered? ops))]
+        generators (map compile-operators (vals name->ops))
+        ordered? (boolean (some ordered? generators))]
     (stream-aggregator-generator
       :descriptor name->ops
       :ordered? ordered?
-      :create (fn [_]
-                (let [ops (doall (map create ops))]
+      :create (fn []
+                (let [ops (doall (map create generators))]
                   (stream-aggregator
                     :process (fn [msgs]
                                (doseq [op ops]

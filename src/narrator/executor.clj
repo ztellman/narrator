@@ -2,6 +2,7 @@
   (:use
     [potemkin])
   (:require
+    [primitive-math :as p]
     [narrator.utils.rand :as r]
     [narrator.core :as c])
   (:import
@@ -158,10 +159,11 @@
     (AtomicLong. 0)))
 
 (defn buffered-aggregator
-  [& {:keys [operator capacity semaphore hash]
+  [& {:keys [operator capacity semaphore]
       :or {capacity 1024
            semaphore (semaphore)}}]
-  (let [^Semaphore semaphore semaphore
+  (let [hash c/*execution-affinity*
+        ^Semaphore semaphore semaphore
         acc-ref (atom (accumulator capacity))
         flush (fn flush [acc sync?]
                 (when (compare-and-set! acc-ref acc (accumulator capacity))
@@ -171,7 +173,7 @@
                       #(c/process-all! operator (seq acc))
                       semaphore
                       (if hash
-                        (rem hash num-cores)
+                        (p/rem (long hash) num-cores)
                         (r/rand-int num-cores))))))]
     (reify
       StreamOperator
@@ -196,5 +198,32 @@
       clojure.lang.IDeref
       (deref [_]
         @operator))))
+
+;;;
+
+(defn thread-local-aggregator
+  [& {:keys [generator]}]
+  (let [m (ConcurrentHashMap.)]
+    (reify
+      StreamOperator
+      (reset-operator! [_]
+        (doseq [op (vals m)]
+          (c/reset-operator! op)))
+      (process-all! [this msgs]
+        (let [id (.getId (Thread/currentThread))]
+          (if-let [op (.get m id)]
+            (c/process-all! op msgs)
+            (let [op (generator)]
+              (.putIfAbsent m id op)
+              (c/process-all! op msgs)))))
+
+      IBufferedAggregator
+      (flush-operator [_])
+      (process! [this msg] (c/process-all! this [msg]))
+
+      clojure.lang.IDeref
+      (deref [_]
+        (let [combiner (c/combiner generator)]
+          (->> m vals (map deref) combiner))))))
 
 

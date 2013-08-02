@@ -83,12 +83,15 @@
            current-time (atom start-time)
            semaphore (ex/semaphore)]
        (binding [c/*now-fn* #(deref current-time)
-                 c/*operator-wrapper* (fn [op hash]
+                 c/*operator-wrapper* (fn [op]
                                          (ex/buffered-aggregator
                                            :semaphore semaphore
                                            :operator op
-                                           :hash hash
-                                           :capacity block-size))]
+                                           :capacity block-size))
+                 c/*aggregator-creator* (fn [gen]
+                                          (if (and (c/ordered? gen) (c/combiner gen))
+                                            (ex/thread-local-aggregator gen)
+                                            (c/create gen)))]
          (let [op (c/compile-operators* query-descriptor)]
            (query-seq-
              op

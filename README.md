@@ -12,7 +12,7 @@ nil
 > (require '[narrator.operators :as n])
 > (query-seq 
     [:foo n/sum] 
-    (repeat 10 {:foo 1))
+    (repeat 10 {:foo 1}))
 10
 ```
 
@@ -24,10 +24,11 @@ Here, we've composed `:foo` and `narrator.operators/sum` together, and applied t
     [:foo n/rate] 
     {:period 5, :timestamp :foo} 
     (map #(hash-map :foo %) (range 10)))
-({:timestamp 5, :value 5} {:timestamp 10, :value 5})
+({:timestamp 5, :value 5} 
+ {:timestamp 10, :value 5})
 ```
 
-Here we've defined a `:timestamp` function that will give us the time at which each message occurred, and a `:period` at which we want to emit the result.  In this case we're asking for the rate of message over that period, which in this case is one message for each unit of time.
+Here we've defined a `:timestamp` function that will give us the time at which each message occurred, and a `:period` at which we want to emit the result.  In this case we're asking for the rate of message over that period, which is one message for each unit of time.
 
 The operators given to `query-seq` can either be normal Clojure functions, which will be mapped over the messages, or special operators that filter or aggregate messages.  These can be used alone, or composed in any order:
 
