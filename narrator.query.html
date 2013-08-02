@@ -22,7 +22,7 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.query.html#var-query-channel">query-channel</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.query.html#var-query-seq">query-seq</a></li>
         </ul>
       </div>
     </navigation>
@@ -32,7 +32,43 @@
         <div class="doc">
 </div>
         <div class="ns-vars">
-          
+          <div class="public">
+            <h3><a id="var-query-channel" class="source var-name" href="/src/narrator/query.clj">query-channel</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[query-descriptor {:keys [period timestamp value start-time buffer? block-size], :or {value identity, period Long/MAX_VALUE}, :as options} ch]</div>
+            
+            
+            <div class="doc"><p>Behaves like <code>query-seq</code>, except that the input is assumed to be a core.async channel, and the return value is also
+a core.async channel.  A <code>:period</code> must be provided.  If no <code>:timestamp</code> is given, then the analysis will occur in
+realtime, emitting query results  periodically without any timestamp.  If <code>:timestamp</code> is given, then it will emit
+maps with <code>:timestamp</code> and <code>:value</code> entries whenever a period elapses in the input stream.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-query-seq" class="source var-name" href="/src/narrator/query.clj">query-seq</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[query-descriptor s]</div><div class="usage">[query-descriptor {:keys [start-time period timestamp value buffer? block-size], :or {value identity}, :as options} s]</div>
+            
+            
+            <div class="doc"><p>Applies the <code>query-descriptor</code> to the sequence of messages.  If <code>:timestamp</code> and <code>:period</code> are specified, then returns
+a sequence of maps containing <code>:timestamp</code> and <code>:value</code> entries, representing the output of the query between that
+timestamp and the previous one.  If they are not specified, then a single result is returned, representing the consumption
+of the entire sequence.</p>
+
+<pre><code>(query-seq rate (range 10)) =&gt; 10
+
+(query-seq rate {:period 5, :timestamp identity} (range 10)) =&gt; ({:timestamp 5, :value 5} {:timestamp 10, :value 5})
+</code></pre>
+
+<p>This behaves lazily; elements of the input seq will only be consumed when elements from the output seq are consumed.</p>
+
+<p>Optional arguments:</p>
+
+<p><code>start-time</code> - the beginning of time, defaults to the timestamp of the first element
+<code>value</code> - the actual payload of the incoming messages that should be queried, defaults to <code>identity</code>
+<code>buffer?</code> - if true, messages are not immediately processed, and may be processed in parallel, defaults to true
+<code>block-size</code> - the size of the messages buffers, defaults to 1024</p>
+</div>
+          </div>
         </div>
       </div>
     </article>
