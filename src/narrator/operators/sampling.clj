@@ -1,4 +1,4 @@
-(ns narrator.utils.sampling
+(ns narrator.operators.sampling
   (:use
     [potemkin]
     [narrator core])
@@ -46,7 +46,7 @@
                counter (AtomicLong. 0)
                start-time (AtomicLong. (now))
                next-rescale (AtomicLong. (+ (now) (long rescale-interval)))
-               alpha (double (/ 8e-2 window))
+               alpha (/ 8e-2 (double window))
                sample-size (long sample-size)]
            (stream-aggregator
              :process
@@ -143,7 +143,8 @@
      :or {quantiles [0.5 0.9 0.95 0.99 0.999]}
      :as options}]
      (compile-operators
-       [(sample options) #(zipmap quantiles (m/quantiles % quantiles))])))
+       [(sample options)
+        #(zipmap quantiles (m/quantiles % quantiles))])))
 
 (defn-operator moving-quantiles
   "Emits the statistical distribution of messages, weighted towards those in the last
@@ -154,4 +155,5 @@
      :or {quantiles [0.5 0.9 0.95 0.99 0.999]}
      :as options}]
      (compile-operators
-       [(moving-sample options) #(zipmap quantiles (m/quantiles % quantiles))])))
+       [(moving-sample options)
+        #(zipmap quantiles (m/quantiles % quantiles))])))

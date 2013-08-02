@@ -6,7 +6,7 @@
   (:require
     [clojure.set :as set]
     [clojure.core.reducers :as r]
-    [narrator.utils
+    [narrator.operators
      sampling])
   (:import
     [java.util.concurrent
@@ -106,7 +106,7 @@
   (mapcat-op seq))
 
 (import-vars
-  [narrator.utils.sampling
+  [narrator.operators.sampling
    sample
    moving-sample
    quantiles
