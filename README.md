@@ -1,6 +1,6 @@
 ![](https://dl.dropboxusercontent.com/u/174179/narrator/storyteller.png)
 
-Narrator is a library for reducing streams of time-ordered data into concise, high-level descriptions.
+Narrator is a library for reducing streams of data into concise, high-level descriptions.  Stream processing is automatically parallelized wherever possible, and the provided operators are designed to be memory-efficient, allowing for high-throughput analysis of large historical data sets or unbounded realtime streams.
 
 ### usage
 
@@ -111,6 +111,10 @@ The structural query descriptors work great when we know the structure of the da
 
 In this operator, we group each task by their `:name`, first counting their frequency, but also taking the list of `:children`, concatenating it such that each element is propagated forward as an individual message, and then fed back into the same query.
 
+### core.async integration
+
+If `core.async` is included in the classpath, then Narrator also provides a `narrator.query/query-channel` function, which behaves similarly to `query-seq`, but can also be used to process realtime streams.
+
 ### available operators
 
 `rate`, `sum`, `group-by`, `concat`, and `recur` are demonstrated above.
@@ -121,6 +125,22 @@ In this operator, we group each task by their `:name`, first counting their freq
 > (query-seq (n/filter even?) (range 10))
 (0 2 4 6 8)
 ```
+
+`sample` and `moving-sample` can be used to periodically emit a representative sampling of the incoming stream:
+
+```clj
+> (query-seq (n/sample {:sample-size 10}) (range 1000))
+(527 161 55 522 173 312 149 664 449 570)
+```
+
+If the values are numbers, `quantiles` and `moving-quantiles` can be used to give the statistical distribution of values:
+
+```clj
+> (query-seq n/quantiles (range 1000))
+{0.999 998.001, 0.99 989.01, 0.95 949.05, 0.9 899.1, 0.5 499.5}
+```
+
+The "moving" variants of both operators provide samples biased towards more recent entries, and require that `:timestamp` is defined in the query.
 
 ...
 
