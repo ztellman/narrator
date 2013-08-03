@@ -157,6 +157,7 @@
     (assert period "A :period must be specified.")
     (let [out (a/chan)
           now #(System/currentTimeMillis)
+          period (long period)
           current-time (atom (when-not timestamp (now)))
           op (create-operator query-descriptor (assoc options :now #(deref current-time)))]
       (if-not timestamp

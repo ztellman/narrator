@@ -82,10 +82,10 @@
 
 (defn seq->channel [s]
   (let [out (a/chan)]
-    (a/go
+    (a/thread
       (loop [s s]
         (when-not (empty? s)
-          (a/>! out (first s))
+          (a/>!! out (first s))
           (recur (rest s))))
       (a/close! out))
     out))
