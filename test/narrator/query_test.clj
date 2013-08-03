@@ -3,6 +3,7 @@
     [narrator core query]
     [clojure test])
   (:require
+    [clojure.core.async :as a]
     [narrator.operators :as n]
     [criterium.core :as c]))
 
@@ -76,6 +77,39 @@
           (query-seq
             (n/group-by :name {:rate n/rate, :children [:children n/concat n/recur]})
             [x])))))
+
+;;;
+
+(defn seq->channel [s]
+  (let [out (a/chan)]
+    (a/go
+      (loop [s s]
+        (when-not (empty? s)
+          (a/>! out (first s))
+          (recur (rest s))))
+      (a/close! out))
+    out))
+
+(defn channel->seq [ch]
+  (lazy-seq
+    (let [msg (a/<!! ch)]
+      (when-not (nil? msg)
+        (cons msg (channel->seq ch))))))
+
+(deftest test-query-channel
+  (are [expected descriptor]
+    (= expected (->> data
+                  seq->channel
+                  (query-channel descriptor {:period 1e6})
+                  channel->seq
+                  first))
+
+    1000 n/rate
+    1000 [:one n/sum]
+    3000 [:one inc inc n/sum]
+    3002 [:one inc inc n/sum inc inc]))
+
+;;;
 
 (deftest ^:benchmark benchmark-query-seq
   (c/quick-bench

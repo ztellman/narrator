@@ -135,10 +135,10 @@
 
 (defmacro ^:private when-core-async [& body]
   (when (try
-        (require '[clojure.core.async :as a])
-        true
-        (catch Exception _
-          false))
+          (require '[clojure.core.async :as a])
+          true
+          (catch Exception _
+            false))
     `(do ~@body)))
 
 (when-core-async
