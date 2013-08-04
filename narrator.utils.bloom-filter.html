@@ -1,6 +1,6 @@
 <html lang="en">
   <head>
-    <title>narrator.utils.rand documentation</title>
+    <title>narrator.utils.bloom-filter documentation</title>
     <link href="css/default.css" type="text/css" rel="stylesheet" />
     <link href="css/codox-md.css" type="text/css" rel="stylesheet" />
     <script type="text/javascript" src="js/jquery.min.js"></script>
@@ -22,31 +22,39 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.rand.html#var-rand">rand</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.rand.html#var-rand-int">rand-int</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.bloom-filter.html#var-add-all%21">add-all!</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.bloom-filter.html#var-hashes">hashes</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.utils.bloom-filter.html#var-num-hashes">num-hashes</a></li>
         </ul>
       </div>
     </navigation>
     <article>
       <div id="content" class="namespace-docs">
-        <h2 class="namespace-title">narrator.utils.rand documentation</h2>
+        <h2 class="namespace-title">narrator.utils.bloom-filter documentation</h2>
         <div class="doc">
 </div>
         <div class="ns-vars">
           <div class="public">
-            <h3><a id="var-rand" class="source var-name" href="/src/narrator/utils/rand.clj">rand</a></h3>
+            <h3><a id="var-add-all%21" class="source var-name" href="/src/narrator/utils/bloom_filter.clj">add-all!</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[]</div><div class="usage">[n]</div>
+            <div class="usage">[_ s]</div>
             
             
-            <div class="doc"><p>An optimized random floating-point generator.</p>
+            <div class="doc"><p>Adds the elements in <code>s</code> to the set.</p>
 </div>
           </div><div class="public">
-            <h3><a id="var-rand-int" class="source var-name" href="/src/narrator/utils/rand.clj">rand-int</a></h3>
+            <h3><a id="var-hashes" class="source var-name" href="/src/narrator/utils/bloom_filter.clj">hashes</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[n]</div>
+            <div class="usage">[x num-hashes]</div>
             
             
-            <div class="doc"><p>An optimized random integer generator.</p>
+            <div class="doc"><p>Returns an array of at least <code>num-hashes</code> 32-bit hashes based on <code>x</code>.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-num-hashes" class="source var-name" href="/src/narrator/utils/bloom_filter.clj">num-hashes</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[_]</div>
+            
+            
+            <div class="doc"><p>Returns the number of hash functions used by the Bloom filter.</p>
 </div>
           </div>
         </div>
