@@ -6,6 +6,8 @@
   (:require
     [clojure.set :as set]
     [clojure.core.reducers :as r]
+    [narrator.utils
+     [bloom-filter :as bloom]]
     [narrator.operators
      sampling])
   (:import
@@ -102,8 +104,40 @@
   (reducer-op (r/filter predicate)))
 
 (defn-operator concat
+  "Takes a stream of sequences, and emits a stream of the elements within the seqs."
   []
   (mapcat-op seq))
+
+(defn-operator distinct-by
+  "Filters out duplicate messages, based on the value returned by `(facet msg)`.
+
+   This is an approximate filtering, using Bloom filters.  This means that some elements
+   (by default ~1%) will be incorrectly filtered out.  Using these appropriately means
+   setting a correct `error` and `cardinality` for your use case.
+
+   If `clear-on-reset?` is true, messages will ony be distinct within a given period.  If
+   not, they're distinct over the lifetime of the stream."
+  ([facet]
+     (distinct-by facet nil))
+  ([facet
+    {:keys [cardinality error clear-on-reset?]
+     :or {cardinality 1e6
+          error 0.01
+          clear-on-reset? true}}]
+     (stream-reducer-generator
+       :ordered? true
+       :create (fn []
+                 (let [b (atom (bloom/bloom-filter cardinality error))]
+                   (stream-reducer
+                     :reducer (r/filter
+                                (fn [msg]
+                                  (let [f (facet msg)]
+                                    (if (bloom/contains? @b f)
+                                      false
+                                      (do
+                                        (bloom/add-all! @b [f])
+                                        true)))))
+                     :reset #(reset! b (bloom/bloom-filter cardinality error))))))))
 
 (import-vars
   [narrator.operators.sampling
