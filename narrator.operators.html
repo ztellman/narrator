@@ -16,13 +16,13 @@
       <div id="namespaces" class="sidebar">
         <h3>Namespaces</h3>
         <ul class="ns-links">
-          <li class="ns-list"><a class="ns-link ns-name" href="narrator.core.html">narrator.core</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.executor.html">narrator.executor</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.operators.html">narrator.operators</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.operators.sampling.html">narrator.operators.sampling</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.query.html">narrator.query</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.bloom-filter.html">narrator.utils.bloom-filter</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.locks.html">narrator.utils.locks</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.math.html">narrator.utils.math</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.rand.html">narrator.utils.rand</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.time.html">narrator.utils.time</a></li>
+          <li class="ns-list"><a class="ns-link ns-name" href="narrator.core.html">narrator.core</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.executor.html">narrator.executor</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.operators.html">narrator.operators</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.operators.sampling.html">narrator.operators.sampling</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.operators.sampling.html">narrator.operators.sampling</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.query.html">narrator.query</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.bloom-filter.html">narrator.utils.bloom-filter</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.locks.html">narrator.utils.locks</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.math.html">narrator.utils.math</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.rand.html">narrator.utils.rand</a></li><li class="ns-list"><a class="ns-link ns-name" href="narrator.utils.time.html">narrator.utils.time</a></li>
         </ul>
       </div>
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-concat">concat</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-distinct-by">distinct-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-group-by">group-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-moving-quantiles">moving-quantiles</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-moving-sample">moving-sample</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quantiles">quantiles</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-rate">rate</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-recur">recur</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-sample">sample</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-sum">sum</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-concat">concat</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-distinct-by">distinct-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-group-by">group-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quantiles">quantiles</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-rate">rate</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-recur">recur</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-sample">sample</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-sum">sum</a></li>
         </ul>
       </div>
     </navigation>
@@ -46,11 +46,13 @@
             <div class="usage">[facet]</div><div class="usage">[facet {:keys [cardinality error clear-on-reset?], :or {cardinality 1000000.0, error 0.01, clear-on-reset? true}}]</div>
             
             
-            <div class="doc"><p>Filters out duplicate messages, based on the value returned by <code>(facet msg)</code>.</p>
+            <div class="doc"><p>Filters out duplicate messages, based on the value returned by <code>(facet msg)</code>, which must
+be a keyword or string.</p>
 
 <p>This is an approximate filtering, using Bloom filters.  This means that some elements
 (by default ~1%) will be incorrectly filtered out.  Using these appropriately means
-setting a correct <code>error</code> and <code>cardinality</code> for your use case.</p>
+setting the <code>error</code>, which is the proportion of false positives from 0 to 1, and
+<code>cardinality</code>, which is the maximum expected unique facets.</p>
 
 <p>If <code>clear-on-reset?</code> is true, messages will ony be distinct within a given period.  If
 not, they're distinct over the lifetime of the stream.</p>
@@ -62,23 +64,6 @@ not, they're distinct over the lifetime of the stream.</p>
             
             
             <div class="doc">
-</div>
-          </div><div class="public">
-            <h3><a id="var-moving-quantiles" class="source var-name" href="/src/narrator/operators/sampling.clj">moving-quantiles</a></h3>
-            <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[]</div><div class="usage">[{:keys [quantiles window sample-size], :or {quantiles [0.5 0.9 0.95 0.99 0.999]}, :as options}]</div>
-            
-            
-            <div class="doc"><p>Emits the statistical distribution of messages, weighted towards those in the last
-<code>window</code> milliseconds.</p>
-</div>
-          </div><div class="public">
-            <h3><a id="var-moving-sample" class="source var-name" href="/src/narrator/operators/sampling.clj">moving-sample</a></h3>
-            <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[]</div><div class="usage">[{:keys [window sample-size], :or {sample-size 1024, window (t/hours 1)}}]</div>
-            
-            
-            <div class="doc"><p>Emits a sampling of messages, weighted toward those in the last <code>window</code> milliseconds.</p>
 </div>
           </div><div class="public">
             <h3><a id="var-quantiles" class="source var-name" href="/src/narrator/operators/sampling.clj">quantiles</a></h3>
