@@ -15,7 +15,8 @@
 
 (defn false-positive-rate [s samples pool]
   (let [es (random-elements pool)]
-    (b/add-all! s (take samples es))
+    (doseq [x (take samples es)]
+      (b/add! s x))
     (double
       (/ (- (->> es (filter #(b/contains? s %)) count) samples)
         pool))))
@@ -29,11 +30,11 @@
           (+ error (/ error 5)))))))
 
 (deftest ^:benchmark benchmark-bloom-filter
-  (let [s (random-elements 1e3)
-        b (b/bloom-filter 1e3 0.01)]
+  (let [x (first (random-elements 1))
+        b (b/bloom-filter false 1e3 0.01)]
     (println "add element")
     (c/quick-bench
-      (b/add-all! b (take 1 s)))
+      (b/add! b x))
     (println "check element")
     (c/quick-bench
-      (b/contains? b (first s)))))
+      (b/contains? b x))))

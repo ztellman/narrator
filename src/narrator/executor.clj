@@ -41,18 +41,18 @@
   ([^Semaphore semaphore ^long permits]
      (.release semaphore permits)))
 
-(def ^:private ^:dynamic *exclusive-lock* true)
+(def ^:private ^:dynamic *has-exclusive-lock* false)
 
 (defmacro with-exclusive-lock [semaphore & body]
   `(let [semaphore# ~semaphore
-         lock?# *exclusive-lock*]
-     (when lock?#
+         has-lock?# *has-exclusive-lock*]
+     (when-not has-lock?#
        (acquire-all semaphore#))
      (try
-       (binding [*exclusive-lock* false]
+       (binding [*has-exclusive-lock* true]
          ~@body)
        (finally
-         (when lock?#
+         (when-not has-lock?#
            (release semaphore# max-permits))))))
 
 (defn ^Semaphore semaphore []
@@ -114,6 +114,7 @@
   (defn submit
     [f ^Semaphore semaphore idx]
     (let [task-id (inc-task semaphore)
+          
           ^Runnable r
           (fn []
             (binding [*task-id* task-id]
@@ -192,7 +193,7 @@
         (loop []
           (let [acc @acc-ref]
             (when-not (add! acc msg)
-              (flush acc (not *exclusive-lock*))
+              (flush acc *has-exclusive-lock*)
               (recur)))))
 
       clojure.lang.IDeref
@@ -217,7 +218,8 @@
                                 (let [op (c/create generator)]
                                   (.putIfAbsent m id op)
                                   (c/process-all! op %))))
-                  :deref #(let [combiner (c/combiner generator)]
-                            (->> m vals (map deref) combiner)) )))))
+                  :deref #(let [combiner (c/combiner generator)
+                                emitter (c/emitter generator)]
+                            (->> m vals (map deref) combiner emitter)))))))
 
 

@@ -35,6 +35,14 @@
 
 ;;;
 
+(defn sample-seq-fn
+  [s]
+  (when-not (empty? s)
+    (let [s' (loop [s s]
+               (when-not (empty? s)
+                 (recur (rest s))))]
+      (sample-seq-fn (rest s')))))
+
 (defn- query-seq-
   [op
    current-time
@@ -44,54 +52,54 @@
          timestamp (constantly 0)
          period Long/MAX_VALUE}
     :as options}
-   s]
-  (when-not (empty? s)
-    (lazy-seq
-      (let [end (long (+ start-time period))
-            s (loop [s s]
-                (when-not (empty? s)
-                  
-                  (if (chunked-seq? s)
-
-                    ;; chunked seq
-                    (let [c (chunk-first s)
-                          cnt (count c)
-                          [recur? s] (loop [idx 0]
-                                       (if (p/< idx cnt)
-                                         (let [x (.nth c idx)
-                                               t (long (timestamp x))]
-                                           (if (p/< t end)
-                                             (do
-                                               (c/process! op x)
-                                               (recur (p/inc idx)))
-                                             
-                                             ;; stopping mid-chunk, cons the remainder back on
-                                             (let [remaining (p/- cnt idx)
-                                                   b (chunk-buffer remaining)]
-                                               (dotimes [idx' remaining]
-                                                 (chunk-append b (.nth c (p/+ idx idx'))))
-                                               [false (chunk-cons (chunk b) (chunk-rest s))])))
-                                         [true (chunk-rest s)]))]
-                      (if recur?
-                        (recur s)
-                        s))
-
-                    ;; non-chunked seq
-                    (let [x (first s)
-                          t (long (timestamp x))]
-                      (if (p/< t end)
-                        (do
-                          (c/process! op x)
-                          (recur (rest s)))
-                        s)))))]
-        (c/flush-operator op)
-        (reset! current-time end)
-        (cons
-          {:timestamp end
-           :value (let [x @op]
-                    (c/reset-operator! op)
-                    x)}
-          (query-seq- op current-time end options s))))))
+   input-seq]
+  (lazy-seq
+    (let [end (long (+ start-time period))
+          s' (loop [s input-seq]
+               (when-not (empty? s)
+                   
+                 (if (chunked-seq? s)
+                     
+                   ;; chunked seq
+                   (let [c (chunk-first s)
+                         cnt (count c)
+                         [recur? s] (loop [idx 0]
+                                      (if (p/< idx cnt)
+                                        (let [x (.nth c idx)
+                                              t (long (timestamp x))]
+                                          (if (p/< t end)
+                                            (do
+                                              (c/process! op x)
+                                              (recur (p/inc idx)))
+                                              
+                                            ;; stopping mid-chunk, cons the remainder back on
+                                            (let [remaining (p/- cnt idx)
+                                                  b (chunk-buffer remaining)]
+                                              (dotimes [idx' remaining]
+                                                (chunk-append b (.nth c (p/+ idx idx'))))
+                                              [false (chunk-cons (chunk b) (chunk-rest s))])))
+                                        [true (chunk-rest s)]))]
+                     (if recur?
+                       (recur s)
+                       s))
+                     
+                   ;; non-chunked seq
+                   (let [x (first s)
+                         t (long (timestamp x))]
+                     (if (p/< t end)
+                       (do
+                         (c/process! op x)
+                         (recur (rest s)))
+                       s)))))]
+      (c/flush-operator op)
+      (reset! current-time end)
+      (cons
+        {:timestamp end
+         :value (let [x @op]
+                  (c/reset-operator! op)
+                  x)}
+        (when-not (empty? s')
+          (query-seq- op current-time end options s'))))))
 
 (defn query-seq
   "Applies the `query-descriptor` to the sequence of messages.  If `:timestamp` and `:period` are specified, then returns

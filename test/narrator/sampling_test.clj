@@ -16,24 +16,10 @@
             _ (process-all! s (range 1e6))
             val @s
             avg (double (/ (reduce + val) (count val)))]
-        (is (< 4e5 avg 6e5)))))
-
-  (testing "moving-sample"
-    (dotimes [_ num-sanity-checks]
-      (binding [*now-fn* (constantly 0)]
-        (let [s (compile-operators* moving-sample)
-              _ (process-all! s (range 1e6))
-            val @s
-              avg (double (/ (reduce + val) (count val)))]
-          (is (< 4e5 avg 6e5)))))))
+        (is (< 4e5 avg 6e5))))))
 
 (deftest ^:benchmark benchmark-samplers
   (println "sample")
   (let [s (compile-operators* sample)]
     (c/quick-bench
-      (process-all! s (range 1e6))))
-  (println "moving-sample")
-  (binding [*now-fn* (constantly 0)]
-    (let [s (compile-operators* moving-sample)]
-      (c/quick-bench
-        (process-all! s (range 1e6))))))
+      (process-all! s (range 1e6)))))

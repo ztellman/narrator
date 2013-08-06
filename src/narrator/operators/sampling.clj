@@ -22,77 +22,6 @@
 
 (p/use-primitive-operators)
 
-(defn priority ^double [^double alpha ^long elapsed]
-  (/
-    (Math/exp
-      (* alpha (double elapsed)))
-    (r/rand)))
-
-(def rescale-interval (t/hours 1))
-
-(defn-operator moving-sample
-  "Emits a sampling of messages, weighted toward those in the last `window` milliseconds."
-  ([]
-     (moving-sample nil))
-  ([{:keys [window sample-size]
-     :or {sample-size 1024
-          window (t/hours 1)}}]
-     (stream-aggregator-generator
-       :ordered? false
-       :create
-       (fn []
-         (let [lock (l/asymmetric-lock)
-               samples (ConcurrentSkipListMap.)
-               counter (AtomicLong. 0)
-               start-time (AtomicLong. (now))
-               next-rescale (AtomicLong. (+ (now) (long rescale-interval)))
-               alpha (/ 8e-2 (double window))
-               sample-size (long sample-size)]
-           (stream-aggregator
-             :process
-             (fn [msgs]
-               (let [elapsed (- (now) (.get start-time))]
-                 (l/with-lock lock
-                   (doseq [msg msgs]
-                     (let [pr (priority alpha elapsed)]
-                       (if (<= (.incrementAndGet counter) sample-size)
-                         
-                         ;; we don't have our full sample size, add everything
-                         (.put samples pr msg)
-                         
-                         ;; check to see if we should displace an existing sample
-                         (let [frst (double (.firstKey samples))]
-                           (when (< frst pr)
-                             (when-not (.putIfAbsent samples pr msg)
-                               (loop [frst frst]
-                                 (when-not (.remove samples frst)
-                                   (recur (double (.firstKey samples))))))))))))))
-             
-             :deref
-             (fn []
-               (l/with-exclusive-lock lock
-                 
-                 ;; do we need to rescale?
-                 (let [now (now)]
-                   (when (>= now (.get next-rescale))
-                     (.set next-rescale (+ (long (now)) (long rescale-interval)))
-                     (let [prev-start-time (.get start-time)
-                           _ (.set start-time now)
-                           scale-factor (Math/exp
-                                          (*
-                                            (- alpha)
-                                            (double (- now prev-start-time))))]
-                       
-                       ;; rescale each key
-                       (doseq [k (keys samples)]
-                         (let [val (.remove samples k)]
-                           (.put samples (* scale-factor (double k)) val)))
-                       
-                       ;; make sure counter reflects size of collection
-                       (.set counter (count samples)))))
-
-                 (->> samples vals doall)))))))))
-
 (defn-operator sample
   "Emits a uniform sampling of messages.  If `clear-on-reset?` is true, the sample only
    represents messages in the last period, otherwise the sample is over the entire lifetime
@@ -131,7 +60,7 @@
                  (dotimes [i cnt]
                    (aset ary i (.get samples i)))
 
-                 (seq ary)))))))))
+                 ary))))))))
 
 (defn-operator quantiles
   "Emits the statistical distribution of messages.  If `clear-on-reset?` is true, this
@@ -146,14 +75,3 @@
        [(sample options)
         #(zipmap quantiles (m/quantiles % quantiles))])))
 
-(defn-operator moving-quantiles
-  "Emits the statistical distribution of messages, weighted towards those in the last
-   `window` milliseconds."
-  ([]
-     (quantiles nil))
-  ([{:keys [quantiles window sample-size]
-     :or {quantiles [0.5 0.9 0.95 0.99 0.999]}
-     :as options}]
-     (compile-operators
-       [(moving-sample options)
-        #(zipmap quantiles (m/quantiles % quantiles))])))

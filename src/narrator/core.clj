@@ -15,6 +15,7 @@
 
 (definterface+ StreamOperatorGenerator
   (aggregator? [_])
+  (emitter [_])
   (combiner [_])
   (ordered? [_])
   (create [_])
@@ -79,9 +80,11 @@
     (deref [_] (deref))))
 
 (defn stream-aggregator-generator
-  [& {:keys [ordered? create descriptor combiner]}]
+  [& {:keys [ordered? create descriptor combiner emitter]
+      :or {emitter identity}}]
   (assert create)
   (reify StreamOperatorGenerator
+    (emitter [_] emitter)
     (combiner [_] combiner)
     (aggregator? [_] true)
     (ordered? [_] ordered?)
@@ -179,7 +182,7 @@
               ordered? (or
                          (some ordered? pre)
                          (ordered? aggr))
-              agg-combiner (or (combiner aggr) first)]
+              aggr-emitter (emitter aggr)]
           (deliver generator
             (stream-aggregator-generator
               :descriptor op-descriptor
@@ -195,8 +198,8 @@
                                 post (when (seq post)
                                        (->> post (map reducer) reverse (apply comp)))
                                 deref-fn (if post
-                                           #(first (into [] (post [(agg-combiner [@aggr])])))
-                                           #(agg-combiner [(deref aggr)]))
+                                           #(first (into [] (post [(aggr-emitter @aggr)])))
+                                           #(aggr-emitter (deref aggr)))
                                 process-fn (if pre
                                              (if ordered?
                                                #(process-all! aggr (into [] (pre %)))
@@ -242,7 +245,8 @@
       :descriptor name->ops
       :ordered? ordered?
       :create (fn []
-                (let [ops (doall (map create generators))]
+                (let [ops (doall
+                            (map create generators))]
                   (stream-aggregator
                     :process (fn [msgs]
                                (doseq [op ops]

@@ -109,11 +109,13 @@
   (mapcat-op seq))
 
 (defn-operator distinct-by
-  "Filters out duplicate messages, based on the value returned by `(facet msg)`.
+  "Filters out duplicate messages, based on the value returned by `(facet msg)`, which must
+   be a keyword or string.
 
    This is an approximate filtering, using Bloom filters.  This means that some elements
    (by default ~1%) will be incorrectly filtered out.  Using these appropriately means
-   setting a correct `error` and `cardinality` for your use case.
+   setting the `error`, which is the proportion of false positives from 0 to 1, and
+   `cardinality`, which is the maximum expected unique facets.
 
    If `clear-on-reset?` is true, messages will ony be distinct within a given period.  If
    not, they're distinct over the lifetime of the stream."
@@ -127,7 +129,7 @@
      (stream-reducer-generator
        :ordered? true
        :create (fn []
-                 (let [b (atom (bloom/bloom-filter cardinality error))]
+                 (let [b (atom (bloom/bloom-filter false cardinality error))]
                    (stream-reducer
                      :reducer (r/filter
                                 (fn [msg]
@@ -135,13 +137,11 @@
                                     (if (bloom/contains? @b f)
                                       false
                                       (do
-                                        (bloom/add-all! @b [f])
+                                        (bloom/add! @b f)
                                         true)))))
-                     :reset #(reset! b (bloom/bloom-filter cardinality error))))))))
+                     :reset #(reset! b (bloom/bloom-filter false cardinality error))))))))
 
 (import-vars
   [narrator.operators.sampling
    sample
-   moving-sample
-   quantiles
-   moving-quantiles])
+   quantiles])

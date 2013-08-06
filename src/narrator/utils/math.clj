@@ -12,18 +12,19 @@
     (Arrays/sort ^doubles ary)
     ary))
 
+(def ^:const ln2 (Math/log 2))
+
+(defn log2 [x]
+  (/ (Math/log x) ln2))
+
 (defn lerp ^double [^double lower ^double upper ^double t]
   (+ lower (* t (- upper lower))))
 
 (defn lerp-array ^double [^doubles ary ^double t]
   (let [len (Array/getLength ary)]
     (cond
-
-      (== 0 len)
-      0.0
-
-      (== 1 len)
-      (aget ary 0)
+      (== len 0) 0.0
+      (== len 1) (aget ary 0)
 
       :else
       (if (== 1.0 t)
