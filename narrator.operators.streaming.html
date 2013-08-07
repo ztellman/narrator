@@ -1,6 +1,6 @@
 <html lang="en">
   <head>
-    <title>narrator.operators.sampling documentation</title>
+    <title>narrator.operators.streaming documentation</title>
     <link href="css/default.css" type="text/css" rel="stylesheet" />
     <link href="css/codox-md.css" type="text/css" rel="stylesheet" />
     <script type="text/javascript" src="js/jquery.min.js"></script>
@@ -22,25 +22,32 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.sampling.html#var-sample">sample</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-distinct-by">distinct-by</a></li>
         </ul>
       </div>
     </navigation>
     <article>
       <div id="content" class="namespace-docs">
-        <h2 class="namespace-title">narrator.operators.sampling documentation</h2>
+        <h2 class="namespace-title">narrator.operators.streaming documentation</h2>
         <div class="doc">
 </div>
         <div class="ns-vars">
           <div class="public">
-            <h3><a id="var-sample" class="source var-name" href="/src/narrator/operators/sampling.clj">sample</a></h3>
+            <h3><a id="var-distinct-by" class="source var-name" href="/src/narrator/operators/streaming.clj">distinct-by</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[]</div><div class="usage">[{:keys [clear-on-reset? sample-size], :or {clear-on-reset? true, sample-size 1024}}]</div>
+            <div class="usage">[facet]</div><div class="usage">[facet {:keys [clear-on-reset? error cardinality], :or {clear-on-reset? true, error 0.01, cardinality 100000.0}}]</div>
             
             
-            <div class="doc"><p>Emits a uniform sampling of messages.  If <code>clear-on-reset?</code> is true, the sample only
-represents messages in the last period, otherwise the sample is over the entire lifetime
-of the stream.</p>
+            <div class="doc"><p>Filters out duplicate messages, based on the value returned by <code>(facet msg)</code>, which must
+be a keyword or string.</p>
+
+<p>This is an approximate filtering, using Bloom filters.  This means that some elements
+(by default ~1%) will be incorrectly filtered out.  Using these appropriately means
+setting the <code>error</code>, which is the proportion of false positives from 0 to 1, and
+<code>cardinality</code>, which is the maximum expected unique facets.</p>
+
+<p>If <code>clear-on-reset?</code> is true, messages will ony be distinct within a given period.  If
+not, they're distinct over the lifetime of the stream.</p>
 </div>
           </div>
         </div>
