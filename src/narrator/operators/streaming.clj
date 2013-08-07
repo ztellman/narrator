@@ -103,11 +103,11 @@
      :or {clear-on-reset? true
           error 0.01
           cardinality 1e5}}]
-     (stream-reducer-generator
+     (stream-processor-generator
        :ordered? true
        :create (fn []
                  (let [bloom (atom (BloomFilter. (int cardinality) (double error)))]
-                   (stream-reducer
+                   (stream-processor
                      :reset #(when clear-on-reset?
                                (reset! bloom (BloomFilter. (int cardinality) (double error))))
                      :reducer (r/filter

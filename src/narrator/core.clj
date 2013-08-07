@@ -28,7 +28,7 @@
 
 ;;;
 
-(defn stream-reducer
+(defn stream-processor
   "A stream operator which for each message emits zero or more messages.  It must be given
    a `reducer` parameter, which describes the reducer function that processes the messages.
 
@@ -41,7 +41,7 @@
     (reset-operator! [_] (when reset (reset)))
     (reducer [_] reducer)))
 
-(defn stream-reducer-generator
+(defn stream-processor-generator
   [& {:keys [ordered? create descriptor]}]
   (assert create)
   (reify StreamOperatorGenerator
@@ -94,28 +94,28 @@
 (defn map-op
   "Returns an unordered stream operator that maps `f` over every message."
   [f]
-  (stream-reducer-generator
+  (stream-processor-generator
     :ordered? false
     :create (constantly
-              (stream-reducer
+              (stream-processor
                 :reducer (r/map f)))))
 
 (defn mapcat-op
   "Returns an unordered stream operator that mapcats `f` over every message."
   [f]
-  (stream-reducer-generator
+  (stream-processor-generator
     :ordered? false
     :create (constantly
-              (stream-reducer
+              (stream-processor
                 :reducer (r/mapcat f)))))
 
 (defn reducer-op
   "Returns an unordered stream operator that applies the reducer `f` over the message stream."
   [f]
-  (stream-reducer-generator
+  (stream-processor-generator
     :ordered? false
     :create (constantly
-              (stream-reducer
+              (stream-processor
                 :reducer f))))
 
 ;;;
@@ -147,11 +147,11 @@
   (when *top-level-generator*
     @*top-level-generator*))
 
-(defn- create-stream-reducer [gen]
+(defn- create-stream-processor [gen]
   (if (aggregator? gen)
     (let [reducer-fn (or (reducer gen) first)
           op (create gen)]
-      (stream-reducer
+      (stream-processor
         :reducer (r/map #(do (process! op %) (flush-operator op) (reducer-fn [@op])))))
     (create gen)))
 
@@ -190,8 +190,8 @@
               :create (fn []
                         (binding [*top-level-generator* (or *top-level-generator* @generator)]
                           (let [aggr (create aggr)
-                                pre (map create-stream-reducer pre)
-                                post (map create-stream-reducer post)
+                                pre (map create-stream-processor pre)
+                                post (map create-stream-processor post)
                                 ops (concat pre [aggr] post)
                                 pre (when (seq pre)
                                       (->> pre (map reducer) reverse (apply comp)))
