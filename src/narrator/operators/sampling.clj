@@ -62,16 +62,3 @@
 
                  ary))))))))
 
-(defn-operator quantiles
-  "Emits the statistical distribution of messages.  If `clear-on-reset?` is true, this
-   only represents the distribution of messages in the last period, otherwise it
-   represents the distribution over the entire lifetime of the stream."
-  ([]
-     (quantiles nil))
-  ([{:keys [quantiles clear-on-reset? sample-size]
-     :or {quantiles [0.5 0.9 0.95 0.99 0.999]}
-     :as options}]
-     (compile-operators
-       [(sample options)
-        #(zipmap quantiles (m/quantiles % quantiles))])))
-

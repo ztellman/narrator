@@ -6,10 +6,9 @@
   (:require
     [clojure.set :as set]
     [clojure.core.reducers :as r]
-    [narrator.utils
-     [bloom-filter :as bloom]]
     [narrator.operators
-     sampling])
+     sampling
+     streaming])
   (:import
     [java.util.concurrent
      ConcurrentHashMap]
@@ -22,7 +21,7 @@
   "Yields the number of messages seen since it has been reset."
   []
   (stream-aggregator-generator
-    :combiner #(apply + %)
+    :combine #(apply + %)
     :ordered? false
     :create (fn []
               (let [cnt (AtomicLong. 0)]
@@ -37,7 +36,7 @@
      (sum nil))
   ([options]
      (stream-aggregator-generator
-       :combiner #(apply + %)
+       :combine #(apply + %)
        :ordered? false
        :create (fn []
                  (let [cnt (AtomicLong. 0)]
@@ -61,6 +60,10 @@
            re-nil #(if (identical? ::nil %) nil %)]
        (stream-aggregator-generator
          :ordered? (ordered? generator)
+         :combine (combiner generator)
+         :emit #(zipmap
+                  (keys %)
+                  (map (emitter generator) (vals %)))
          :create (fn []
                    (let [m (ConcurrentHashMap.)
                          wrapper *compiled-operator-wrapper*
@@ -108,40 +111,10 @@
   []
   (mapcat-op seq))
 
-(defn-operator distinct-by
-  "Filters out duplicate messages, based on the value returned by `(facet msg)`, which must
-   be a keyword or string.
-
-   This is an approximate filtering, using Bloom filters.  This means that some elements
-   (by default ~1%) will be incorrectly filtered out.  Using these appropriately means
-   setting the `error`, which is the proportion of false positives from 0 to 1, and
-   `cardinality`, which is the maximum expected unique facets.
-
-   If `clear-on-reset?` is true, messages will ony be distinct within a given period.  If
-   not, they're distinct over the lifetime of the stream."
-  ([facet]
-     (distinct-by facet nil))
-  ([facet
-    {:keys [cardinality error clear-on-reset?]
-     :or {cardinality 1e6
-          error 0.01
-          clear-on-reset? true}}]
-     (stream-reducer-generator
-       :ordered? true
-       :create (fn []
-                 (let [b (atom (bloom/bloom-filter false cardinality error))]
-                   (stream-reducer
-                     :reducer (r/filter
-                                (fn [msg]
-                                  (let [f (facet msg)]
-                                    (if (bloom/contains? @b f)
-                                      false
-                                      (do
-                                        (bloom/add! @b f)
-                                        true)))))
-                     :reset #(reset! b (bloom/bloom-filter false cardinality error))))))))
-
 (import-vars
   [narrator.operators.sampling
-   sample
-   quantiles])
+   sample]
+  [narrator.operators.streaming
+   quantiles
+   distinct-by
+   cardinality-by])

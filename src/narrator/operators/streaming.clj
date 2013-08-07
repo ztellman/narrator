@@ -1,8 +1,10 @@
-(ns narrator.operators.sampling
+(ns narrator.operators.streaming
   (:use
     [narrator.core])
   (:require
-    [narrator.utils.math :as m])
+    [clojure.core.reducers :as r]
+    [narrator.utils
+     [math :as m]])
   (:import
     [com.clearspring.analytics.stream.membership
      BloomFilter]
@@ -25,13 +27,13 @@
           compression-factor 1e4
           clear-on-reset? true}}]
      (stream-aggregator-generator
-       :ordered? false
-       :emitter (fn [^QDigest digest]
-                  (try
-                    (zipmap quantiles (map #(.getQuantile digest %) quantiles))
-                    (catch IndexOutOfBoundsException _
-                      {})))
-       :combiner #(reduce digest-union %)
+       :ordered? true
+       :emit (fn [^QDigest digest]
+               (try
+                 (zipmap quantiles (map #(.getQuantile digest %) quantiles))
+                 (catch IndexOutOfBoundsException _
+                   {})))
+       :combine #(reduce digest-union %)
        :create (fn []
                  (let [digest (atom (QDigest. compression-factor))]
                    (stream-aggregator
@@ -60,12 +62,13 @@
      :or {clear-on-reset? true
           error 0.01}}]
      (stream-aggregator-generator
-       :emitter (fn [^HyperLogLogPlus hll]
-                  (.cardinality hll))
-       :combiner (fn [s]
-                   (if (= 1 (count s))
-                     (first s)
-                     (.merge ^HyperLogLogPlus (first s) (into-array (rest s)))))
+       :ordered? true
+       :emit (fn [^HyperLogLogPlus hll]
+               (.cardinality hll))
+       :combine (fn [s]
+                  (if (= 1 (count s))
+                    (first s)
+                    (.merge ^HyperLogLogPlus (first s) (into-array (rest s)))))
        :create (fn []
                  (let [hll (atom (HyperLogLogPlus.
                                    (hll-precision error)
@@ -81,3 +84,38 @@
                                 (reset! hll (HyperLogLogPlus.
                                               (hll-precision error)
                                               (hll-precision (/ error 2))))))))))))
+
+(defn-operator distinct-by
+  "Filters out duplicate messages, based on the value returned by `(facet msg)`, which must
+   be a keyword or string.
+
+   This is an approximate filtering, using Bloom filters.  This means that some elements
+   (by default ~1%) will be incorrectly filtered out.  Using these appropriately means
+   setting the `error`, which is the proportion of false positives from 0 to 1, and
+   `cardinality`, which is the maximum expected unique facets.
+
+   If `clear-on-reset?` is true, messages will ony be distinct within a given period.  If
+   not, they're distinct over the lifetime of the stream."
+  ([facet]
+     (distinct-by facet nil))
+  ([facet
+    {:keys [clear-on-reset? error cardinality]
+     :or {clear-on-reset? true
+          error 0.01
+          cardinality 1e5}}]
+     (stream-reducer-generator
+       :ordered? true
+       :create (fn []
+                 (let [bloom (atom (BloomFilter. (int cardinality) (double error)))]
+                   (stream-reducer
+                     :reset #(when clear-on-reset?
+                               (reset! bloom (BloomFilter. (int cardinality) (double error))))
+                     :reducer (r/filter
+                                (fn [msg]
+                                  (let [^BloomFilter b @bloom
+                                        f (name (facet msg))]
+                                    (if (.isPresent b f)
+                                      false
+                                      (do
+                                        (.add b f)
+                                        true)))))))))))

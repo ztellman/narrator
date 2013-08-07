@@ -80,12 +80,12 @@
     (deref [_] (deref))))
 
 (defn stream-aggregator-generator
-  [& {:keys [ordered? create descriptor combiner emitter]
-      :or {emitter identity}}]
+  [& {:keys [ordered? create descriptor combine emit]
+      :or {emit identity}}]
   (assert create)
   (reify StreamOperatorGenerator
-    (emitter [_] emitter)
-    (combiner [_] combiner)
+    (emitter [_] emit)
+    (combiner [_] combine)
     (aggregator? [_] true)
     (ordered? [_] ordered?)
     (create [_] (create))
