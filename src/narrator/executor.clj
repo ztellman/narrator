@@ -112,9 +112,9 @@
                    ;; we never created a lease in the first place
                    (release semaphore)))]
   (defn submit
-    [f ^Semaphore semaphore idx]
+    [f ^Semaphore semaphore hash]
     (let [task-id (inc-task semaphore)
-          
+
           ^Runnable r
           (fn []
             (binding [*task-id* task-id]
@@ -123,8 +123,10 @@
                 (finally
                   (dec-task task-id semaphore)))))]
       (try
-        (.submit ^ExecutorService (aget ^objects executors idx) r)
-        (catch Exception _
+        (.submit ^ExecutorService
+          (aget ^objects executors (Math/abs (p/rem hash num-cores)))
+          r)
+        (catch Exception e
           (dec-task task-id semaphore))))))
 
 ;;;
@@ -173,9 +175,7 @@
                     (submit
                       #(c/process-all! operator (seq acc))
                       semaphore
-                      (if hash
-                        (p/rem (long hash) num-cores)
-                        (r/rand-int num-cores))))))]
+                      (or hash (r/rand-int num-cores))))))]
     (reify
       StreamOperator
       (reset-operator! [_]

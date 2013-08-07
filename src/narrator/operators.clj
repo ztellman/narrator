@@ -55,7 +55,7 @@
     {:keys [expiration clear-on-reset?]
      :or {clear-on-reset? true}}
     ops]
-     (let [generator (compile-operators ops)
+     (let [generator (compile-operators ops false)
            de-nil #(if (nil? %) ::nil %)
            re-nil #(if (identical? ::nil %) nil %)]
        (stream-aggregator-generator
@@ -66,23 +66,18 @@
                   (map (emitter generator) (vals %)))
          :create (fn []
                    (let [m (ConcurrentHashMap.)
-                         wrapper *compiled-operator-wrapper*
-                         now-fn *now-fn*
-                         top-level-generator *top-level-generator*]
+                         context (capture-context)]
                      (stream-aggregator
-                       :ordered? ordered?
                        :process (fn [msgs]
                                   (doseq [msg msgs]
                                     (let [k (de-nil (facet msg))]
                                       (if-let [op (.get m k)]
                                         (process! op msg)
-                                        (binding [*compiled-operator-wrapper* wrapper
-                                                  *now-fn* now-fn
-                                                  *top-level-generator* top-level-generator
-                                                  *execution-affinity* (when ordered? (hash k))]
-                                          (let [op (create generator)
-                                                op (or (.putIfAbsent m k op) op)]
-                                   (process! op msg)))))))
+                                        (with-bindings context
+                                          (binding [*execution-affinity* (when ordered? (hash k))]
+                                            (let [op (create generator)
+                                                  op (or (.putIfAbsent m k op) op)]
+                                              (process! op msg))))))))
                        :flush #(doseq [x (vals m)]
                                  (flush-operator x))
                        :deref #(zipmap
@@ -100,7 +95,20 @@
   (stream-aggregator-generator
     :ordered? false ;; we can assume this, and it doesn't change anything if we're wrong
     :create (fn []
-              (create *top-level-generator*))))
+              (let [context (capture-context)
+                    op (delay
+                         (with-bindings context
+                           (create @*top-level-generator*)))]
+                (stream-aggregator
+                  :process (fn [msgs]
+                             (when-not (empty? msgs)
+                               (process-all! @op msgs)))
+                  :flush #(when (realized? op)
+                            (flush-operator @op))
+                  :deref #(when (realized? op)
+                            @@op)
+                  :reset #(when (realized? op)
+                            (reset-operator! op)))))))
 
 (defn-operator filter
   [predicate]

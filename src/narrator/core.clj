@@ -141,6 +141,11 @@
 (def ^:dynamic *compiled-operator-wrapper* identity)
 (def ^:dynamic *top-level-generator* nil)
 (def ^:dynamic *aggregator-generator-wrapper* identity)
+
+(defn capture-context []
+  (let [vars [#'*compiled-operator-wrapper* #'*top-level-generator* #'*aggregator-generator-wrapper*]]
+    (zipmap vars (map deref vars))))
+
 (def ^:dynamic *execution-affinity* nil)
 
 (defn top-level-generator []
@@ -168,52 +173,58 @@
 (defn compile-operators
   "Takes a descriptor of stream operations, and returns a function that generates a single
    stream operator that is the composition of all described operators."
-  [op-descriptor]
-  (if-not (sequential? op-descriptor)
-    (compile-operators [op-descriptor])
-    (let [generators (map ->operator-generator op-descriptor)
-          [pre [aggr & post]] [(take-while (complement aggregator?) generators)
-                               (drop-while (complement aggregator?) generators)]]
-      (if-not aggr
-        (compile-operators
-          (concat op-descriptor [(accumulator)]))
-        (let [generator (promise)
-              aggr (*aggregator-generator-wrapper* aggr)
-              ordered? (or
-                         (some ordered? pre)
-                         (ordered? aggr))
-              aggr-emitter (emitter aggr)]
-          (deliver generator
-            (stream-aggregator-generator
-              :descriptor op-descriptor
-              :ordered? ordered?
-              :create (fn []
-                        (binding [*top-level-generator* (or *top-level-generator* @generator)]
-                          (let [aggr (create aggr)
-                                pre (map create-stream-processor pre)
-                                post (map create-stream-processor post)
-                                ops (concat pre [aggr] post)
-                                pre (when (seq pre)
-                                      (->> pre (map reducer) reverse (apply comp)))
-                                post (when (seq post)
-                                       (->> post (map reducer) reverse (apply comp)))
-                                deref-fn (if post
-                                           #(first (into [] (post [(aggr-emitter @aggr)])))
-                                           #(aggr-emitter (deref aggr)))
-                                process-fn (if pre
-                                             (if ordered?
-                                               #(process-all! aggr (into [] (pre %)))
-                                               #(process-all! aggr (r/foldcat (pre %))))
-                                             #(process-all! aggr %))
-                                flush-ops (filter #(instance? IBufferedAggregator %) ops)]
-                            (*compiled-operator-wrapper*
-                              (stream-aggregator
-                                :ordered? ordered?
-                                :reset #(doseq [r ops] (reset-operator! r))
-                                :flush #(doseq [r flush-ops] (flush-operator r))
-                                :deref deref-fn
-                                :process process-fn)))))))
-          @generator)))))
+  ([op-descriptor]
+     (compile-operators op-descriptor true))
+  ([op-descriptor top-level?]
+     (if-not (sequential? op-descriptor)
+       (compile-operators [op-descriptor] top-level?)
+       (let [generators (map ->operator-generator op-descriptor)
+             [pre [aggr & post]] [(take-while (complement aggregator?) generators)
+                                  (drop-while (complement aggregator?) generators)]]
+         (if-not aggr
+           (compile-operators
+             (concat op-descriptor [(accumulator)])
+             top-level?)
+           (let [generator (promise)
+                 ordered? (or
+                            (some ordered? pre)
+                            (and (ordered? aggr) ;; assumes that we can do thread-local aggregation
+                              (not (combiner aggr))))]
+             (deliver generator
+               (stream-aggregator-generator
+                 :descriptor op-descriptor
+                 :ordered? ordered?
+                 :create (fn []
+                           (with-bindings (if top-level?
+                                            {#'*top-level-generator* generator}
+                                            {})
+                             (let [aggr-generator (*aggregator-generator-wrapper* aggr)
+                                   aggr-emitter (emitter aggr-generator)
+                                   aggr (create aggr-generator)
+                                   pre (map create-stream-processor pre)
+                                   post (map create-stream-processor post)
+                                   ops (concat pre [aggr] post)
+                                   pre (when (seq pre)
+                                         (->> pre (map reducer) reverse (apply comp)))
+                                   post (when (seq post)
+                                          (->> post (map reducer) reverse (apply comp)))
+                                   deref-fn (if post
+                                              #(first (into [] (post [(aggr-emitter @aggr)])))
+                                              #(aggr-emitter (deref aggr)))
+                                   process-fn (if pre
+                                                (if ordered?
+                                                  #(process-all! aggr (into [] (pre %)))
+                                                  #(process-all! aggr (r/foldcat (pre %))))
+                                                #(process-all! aggr %))
+                                   flush-ops (filter #(instance? IBufferedAggregator %) ops)]
+                               (*compiled-operator-wrapper*
+                                 (stream-aggregator
+                                   :ordered? ordered?
+                                   :reset #(doseq [r ops] (reset-operator! r))
+                                   :flush #(doseq [r flush-ops] (flush-operator r))
+                                   :deref deref-fn
+                                   :process process-fn)))))))
+             @generator))))))
 
 (defn compile-operators*
   "Given a descriptor of stream operations, returns an instance of an operator that is the
@@ -239,7 +250,7 @@
   ""
   [name->ops]
   (let [ks (keys name->ops)
-        generators (map compile-operators (vals name->ops))
+        generators (map #(compile-operators % false) (vals name->ops))
         ordered? (boolean (some ordered? generators))]
     (stream-aggregator-generator
       :descriptor name->ops

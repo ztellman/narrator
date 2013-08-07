@@ -69,9 +69,9 @@
                       {:name "baz"}
                       {:name "baz"}]}]
     (is (=
-          {"foo" {:children {"bar" {:children {"quux" {:children {}, :rate 1}}
+          {"foo" {:children {"bar" {:children {"quux" {:children nil, :rate 1}}
                                     :rate 1}
-                             "baz" {:children {}
+                             "baz" {:children nil
                                     :rate 2}}
                   :rate 1}}
           (query-seq
