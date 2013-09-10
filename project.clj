@@ -4,7 +4,7 @@
   :license {:name "MIT License"
             :url ""}
   :repositories {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"}
-  :dependencies [[potemkin "0.3.2"]
+  :dependencies [[potemkin "0.3.3"]
                  [org.codehaus.jsr166-mirror/jsr166y "1.7.0"]
                  [byte-transforms "0.1.1-SNAPSHOT"]
                  [com.clearspring.analytics/stream "2.4.0"]]

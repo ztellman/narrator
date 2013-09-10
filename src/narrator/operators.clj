@@ -53,14 +53,27 @@
      (group-by facet nil ops))
   ([facet
     {:keys [expiration clear-on-reset?]
-     :or {clear-on-reset? true}}
+     :or {clear-on-reset? true}
+     :as options}
     ops]
      (let [generator (compile-operators ops false)
            de-nil #(if (nil? %) ::nil %)
            re-nil #(if (identical? ::nil %) nil %)]
        (stream-aggregator-generator
+         :descriptor (list 'group-by facet options ops)
          :ordered? (ordered? generator)
-         :combine (combiner generator)
+         :combine (when-let [combiner (combiner generator)]
+                    (fn [ms]
+                      (let [ks (->> ms (mapcat keys) distinct)]
+                        (zipmap
+                          ks
+                          (map
+                            (fn [k]
+                              (->> ms
+                                (map #(get % k ::none))
+                                (remove #(identical? ::none %))
+                                combiner))
+                            ks)))))
          :emit #(zipmap
                   (keys %)
                   (map (emitter generator) (vals %)))

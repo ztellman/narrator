@@ -152,17 +152,18 @@
   (when *top-level-generator*
     @*top-level-generator*))
 
-(defn- create-stream-processor [gen]
+(defn create-stream-processor [gen]
   (if (aggregator? gen)
-    (let [reducer-fn (or (reducer gen) first)
+    (let [combiner-fn (or (combiner gen) first)
+          emitter-fn (emitter gen)
           op (create gen)]
       (stream-processor
-        :reducer (r/map #(do (process! op %) (flush-operator op) (reducer-fn [@op])))))
+        :reducer (r/map #(do (process! op %) (flush-operator op) (->> [@op] combiner-fn emitter-fn)))))
     (create gen)))
 
 (declare accumulator split)
 
-(defn- ->operator-generator [x]
+(defn ->operator-generator [x]
   (cond
     (instance? StreamOperatorGenerator x) x
     (-> x meta ::generator-generator) (x)
@@ -194,6 +195,8 @@
                (stream-aggregator-generator
                  :descriptor op-descriptor
                  :ordered? ordered?
+                 :combine (when-not post
+                            (combiner aggr))
                  :create (fn []
                            (with-bindings (if top-level?
                                             {#'*top-level-generator* generator}
@@ -255,6 +258,18 @@
     (stream-aggregator-generator
       :descriptor name->ops
       :ordered? ordered?
+      :combine (when (every? combiner generators)
+                 (fn [xs]
+                   (zipmap
+                     ks
+                     (map
+                       (fn [gen k]
+                         (->> xs
+                           (map #(get % k ::none))
+                           (remove #(identical? ::none %))
+                           ((combiner gen))))
+                       generators
+                       ks))))
       :create (fn []
                 (let [ops (doall
                             (map create generators))]
