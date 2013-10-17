@@ -106,11 +106,6 @@
         channel->seq
         first)
       (->> data
-        seq->channel
-        (query-channel descriptor {:period 100})
-        channel->seq
-        (#(do (Thread/sleep 150) (first %))))
-      (->> data
         (map #(hash-map :timestamp %1 :value %2) (range))
         seq->channel
         (query-channel descriptor {:value :value, :timestamp :timestamp, :period 1e6})

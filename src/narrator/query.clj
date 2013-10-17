@@ -236,6 +236,10 @@
 
 (when-lamina
   (defn query-lamina-channel
+    "Behaves like `query-seq`, except that the input is assumed to be a Lamina channel, and the return value is also
+     a Lamina channel.  A `:period` must be provided.  If no `:timestamp` is given, then the analysis will occur in
+     realtime, emitting query results  periodically without any timestamp.  If `:timestamp` is given, then it will emit
+     maps with `:timestamp` and `:value` entries whenever a period elapses in the input stream."
     [query-descriptor
      {:keys [period timestamp value start-time buffer? block-size]
       :or {value identity
