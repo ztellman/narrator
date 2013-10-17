@@ -3,6 +3,7 @@
     [narrator core query]
     [clojure test])
   (:require
+    [lamina.core :as l]
     [clojure.core.async :as a]
     [narrator.operators :as n]
     [criterium.core :as c]))
@@ -98,16 +99,60 @@
 
 (deftest test-query-channel
   (are [expected descriptor]
-    (= expected (->> data
-                  seq->channel
-                  (query-channel descriptor {:period 1e6})
-                  channel->seq
-                  first))
+    (= expected
+      (->> data
+        seq->channel
+        (query-channel descriptor {:period 1e6})
+        channel->seq
+        first)
+      (->> data
+        seq->channel
+        (query-channel descriptor {:period 100})
+        channel->seq
+        (#(do (Thread/sleep 150) (first %))))
+      (->> data
+        (map #(hash-map :timestamp %1 :value %2) (range))
+        seq->channel
+        (query-channel descriptor {:value :value, :timestamp :timestamp, :period 1e6})
+        channel->seq
+        (map :value)
+        first)
+      )
 
     1000 n/rate
     1000 [:one n/sum]
     3000 [:one inc inc n/sum]
     3002 [:one inc inc n/sum inc inc]))
+
+;;;
+
+(deftest test-query-lamina-channel
+  (are [expected descriptor]
+    (= expected
+      (->> data
+        l/lazy-seq->channel
+        (query-lamina-channel descriptor {:period 1e6})
+        l/channel->lazy-seq
+        first)
+      (->> data
+        l/lazy-seq->channel
+        (query-lamina-channel descriptor {:period 100})
+        l/channel->lazy-seq
+        (#(do (Thread/sleep 150) (first %))))
+      (->> data
+        (map #(hash-map :timestamp %1 :value %2) (range))
+        l/lazy-seq->channel
+        (query-lamina-channel descriptor {:value :value, :timestamp :timestamp, :period 1e6})
+        l/channel->lazy-seq
+        (map :value)
+        first)
+      )
+    
+    1000 n/rate
+    1000 [:one n/sum]
+    3000 [:one inc inc n/sum]
+    3002 [:one inc inc n/sum inc inc]))
+
 
 ;;;
 

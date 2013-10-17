@@ -11,7 +11,8 @@
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.5.1"]
                                   [criterium "0.4.1"]
                                   [codox-md "0.2.0" :exclusions [org.clojure/clojure]]
-                                  [org.clojure/core.async "0.1.0-SNAPSHOT"]]}}
+                                  [org.clojure/core.async "0.1.0-SNAPSHOT"]
+                                  [lamina "0.5.0"]]}}
   :global-vars {*warn-on-reflection* true}
   :test-selectors {:default #(not (or (:stress %) (:benchmark %)))
                    :benchmark :benchmark

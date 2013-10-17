@@ -4,7 +4,8 @@
   (:require
     [narrator.utils
      [rand :as r]
-     [time :as t]]
+     [time :as t]
+     [locks :as lock]]
     [primitive-math :as p]
     [narrator.core :as c]
     [narrator.executor :as ex]))
@@ -224,3 +225,84 @@
                     (recur next-flush))))))))
       out)))
 
+(defmacro ^:private when-lamina [& body]
+  (when (try
+          (require '[lamina.core :as l])
+          (require '[lamina.api :as la])
+          true
+          (catch Exception _
+            false))
+    `(do ~@body)))
+
+(when-lamina
+  (defn query-lamina-channel
+    [query-descriptor
+     {:keys [period timestamp value start-time buffer? block-size]
+      :or {value identity
+           period Long/MAX_VALUE}
+      :as options}
+     ch]
+    (let [now #(System/currentTimeMillis)
+          period (long period)
+          current-time (atom (when-not timestamp (now)))
+          op (create-operator query-descriptor (assoc options :now #(deref current-time)))
+          out (l/channel)
+          lock (lock/asymmetric-lock)]
+      (if-not timestamp
+
+        ;; do realtime processing
+        (do
+
+          (l/join
+            (l/periodically
+              {:period period}
+              (fn []
+                (lock/with-exclusive-lock lock
+                  (c/flush-operator op)
+                  (let [x @op]
+                    (c/reset-operator! op)
+                    x))))
+            out)
+
+          (la/bridge-siphon ch out "query-lamina-channel"
+            (fn [msg]
+              (lock/with-lock lock
+                (swap! current-time + period)
+                (c/process! op (value msg)))))
+
+          (l/on-drained ch
+            (fn []
+              (lock/with-exclusive-lock lock
+                (c/flush-operator op)
+                (let [x @op]
+                  (l/enqueue out x)
+                  (l/close out))))))
+
+        ;; go on timestamps of messages
+        (let [next-flush (atom (when start-time (+ start-time period)))]
+
+          (la/bridge-siphon ch out "query-lamina-channel"
+            (fn [msg]
+              (let [t (timestamp msg)]
+                (when-not @next-flush
+                  (reset! current-time t)
+                  (reset! next-flush (+ t period)))
+                (when (< @next-flush t)
+                  (lock/with-exclusive-lock lock
+                    (c/flush-operator op)
+                    (let [x @op]
+                      (c/reset-operator! op)
+                      (l/enqueue out {:timestamp @next-flush :value x})
+                      (reset! current-time @next-flush)
+                      (swap! next-flush + period))))
+                (lock/with-lock lock
+                  (c/process! op (value msg))))))
+
+          (l/on-drained ch
+            (fn []
+              (lock/with-exclusive-lock lock
+                (c/flush-operator op)
+                (let [x @op]
+                  (l/enqueue out {:timestamp @next-flush :value x})
+                  (l/close out)))))))
+      out)))
