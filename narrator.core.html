@@ -22,7 +22,7 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-accumulator">accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators">compile-operators</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators*">compile-operators*</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-map-op">map-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-mapcat-op">mapcat-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-now">now</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-reducer-op">reducer-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-split">split</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-aggregator">stream-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-processor">stream-processor</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-accumulator">accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators">compile-operators</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-compile-operators*">compile-operators*</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-map-op">map-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-mapcat-op">mapcat-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-monoid-aggregator">monoid-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-now">now</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-reducer-op">reducer-op</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-split">split</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-aggregator">stream-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.core.html#var-stream-processor">stream-processor</a></li>
         </ul>
       </div>
     </navigation>
@@ -75,6 +75,16 @@ composition of all operations.</p>
             <div class="doc"><p>Returns an unordered stream operator that mapcats <code>f</code> over every message.</p>
 </div>
           </div><div class="public">
+            <h3><a id="var-monoid-aggregator" class="source var-name" href="/src/narrator/core.clj">monoid-aggregator</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[&amp; {:keys [initial combine emit clear-on-reset?], :or {emit identity}}]</div>
+            
+            
+            <div class="doc"><p>Returns an unordered stream aggregator that combines messages via the two-arity <code>combine</code>
+function, starting with an initial value from the zero-arity <code>initial</code>. If the combined
+value needs to be processed before emitting, a custom <code>emit</code> function may be defined.</p>
+</div>
+          </div><div class="public">
             <h3><a id="var-now" class="source var-name" href="/src/narrator/core.clj">now</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
             <div class="usage">[]</div>
@@ -101,7 +111,7 @@ composition of all operations.</p>
           </div><div class="public">
             <h3><a id="var-stream-aggregator" class="source var-name" href="/src/narrator/core.clj">stream-aggregator</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[&amp; {:keys [reset process flush deref ordered?], :or {ordered? false}, :as args}]</div>
+            <div class="usage">[&amp; {:keys [reset process flush deref], :as args}]</div>
             
             
             <div class="doc"><p>A stream operator which accepts messages, and can be dereferenced to get a description of
