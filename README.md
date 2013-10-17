@@ -11,12 +11,14 @@ Narrator transforms streams of data into periodically sampled values.  This is m
 nil
 > (require '[narrator.operators :as n])
 > (query-seq 
-    [:foo n/sum] 
+    [:foo (n/sum)] 
     (repeat 10 {:foo 1}))
 10
 ```
 
-Here, we've composed `:foo` and `narrator.operators/sum` together, and applied them to the sequence.  Since we haven't defined a period, `query-seq` consumes the entire sequence, first mapping `:foo` over each element, and then summing the result.  However, we can also do a periodic analysis of the sequence:
+Here, we've composed `:foo` and `narrator.operators/sum` together, and applied them to the sequence.  `sum` and other operators can be called with a map of options, such as `(sum {:clear-on-reset? false})`, but as a convenience, if they are called with no parameters it parentheses can be omitted.  `sum` and `(sum)` are interchangeable.
+
+Since we haven't defined a period, `query-seq` consumes the entire sequence, first mapping `:foo` over each element, and then summing the result.  However, we can also do a periodic analysis of the sequence:
 
 
 ```clj
@@ -113,7 +115,7 @@ In this operator, we group each task by their `:name`, first counting their freq
 
 ### core.async integration
 
-If `core.async` is included in the classpath, then Narrator also provides a `narrator.query/query-channel` function, which behaves similarly to `query-seq`, but can also be used to process realtime streams.
+If `core.async` is included in the classpath, then Narrator also provides a `narrator.query/query-channel` function, which behaves similarly to `query-seq`, but can also be used to process realtime streams.  A similar capability for [Lamina](https://github.com/ztellman/lamina) is provided via `narrator.query/query-lamina-channel`.
 
 ### available operators
 
@@ -126,27 +128,48 @@ If `core.async` is included in the classpath, then Narrator also provides a `nar
 (0 2 4 6 8)
 ```
 
-`sample` and `moving-sample` can be used to periodically emit a representative sampling of the incoming stream:
+`sample` can be used to periodically emit a representative sampling of the incoming stream:
 
 ```clj
 > (query-seq (n/sample {:sample-size 10}) (range 1000))
 (527 161 55 522 173 312 149 664 449 570)
 ```
 
-If the values are numbers, `quantiles` and `moving-quantiles` can be used to give the statistical distribution of values:
+If the values are numbers, `quantiles` can be used to give the statistical distribution of values:
 
 ```clj
 > (query-seq n/quantiles (range 1000))
 {0.999 998.001, 0.99 989.01, 0.95 949.05, 0.9 899.1, 0.5 499.5}
 ```
 
-The "moving" variants of both operators provide samples biased towards more recent entries, and require that `:timestamp` is defined in the query.
+When trying to remove duplicate values from large datasets, the memory cost can be quite high.  Using Bloom Filters, `quasi-distinct-by` allows approximate duplicate removal using much less memory, with tunable error rates.  The value used for duplicate checks must be a string or keyword:
 
-...
+```clj
+> (query-seq (n/quasi-distinct-by identity) [:a :a :b :c])
+[:a :b :c]
+```
+
+Measuring cardinality of a large dataset can also be very memory intensive.  Using the HyperLogLog cardinality estimation algorithm, this can be greatly reduced.  `quasi-cardinality` allows estimation of the unique number of elements within a stream, where those elements may be strings, keywords, bytes, or numbers.
+
+```clj
+> (query-seq n/quasi-cardinality (concat (range 10) (range 10)))
+10
+```
+
+A windowed variant of any operator may be defined via `(moving interval operator)`.  This requires that a `:timestamp` be specified, so that the window may be moved.
+
+```clj
+> (map :value 
+    (query-seq 
+      (n/moving 3 n/rate) 
+      {:timestamp identity :period 1} 
+      (range 10)))
+(1 2 3 3 3 3 3 3 3 3)
+```
 
 ### defining your own operators
 
-...
+
 
 ### license
 

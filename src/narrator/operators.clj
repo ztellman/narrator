@@ -13,7 +13,8 @@
     [java.util.concurrent
      ConcurrentHashMap]
     [java.util.concurrent.atomic
-     AtomicLong]))
+     AtomicLong
+     AtomicReference]))
 
 ;;;
 
@@ -31,10 +32,12 @@
                   :reset #(.set cnt 0))))))
 
 (defn-operator sum
-  "Yields the sum of all messages seen since it has been reset."
+  "Yields the sum of all messages.  If `clear-on-reset?` is true, it will be reset to 0
+   at the beginning of every period."
   ([]
      (sum nil))
-  ([options]
+  ([{:keys [clear-on-reset?]
+     :or {clear-on-reset? true}}]
      (stream-aggregator-generator
        :combine #(apply + %)
        :ordered? false
@@ -43,10 +46,10 @@
                    (stream-aggregator
                      :process #(.addAndGet cnt (reduce + %))
                      :deref #(.get cnt)
-                     :reset #(.set cnt 0)))))))
+                     :reset #(when clear-on-reset? (.set cnt 0))))))))
 
 (defn-operator group-by
-  ""
+  "Splits the stream by `facet`, and applies `ops` to the substreams in parallel."
   ([facet]
      (group-by facet nil nil))
   ([facet ops]
@@ -137,5 +140,48 @@
    sample]
   [narrator.operators.streaming
    quantiles
-   distinct-by
-   cardinality-by])
+   quasi-distinct-by
+   quasi-cardinality])
+
+;;;
+
+(defn moving
+  "Emulates a moving window over the operator, of width `interval`.  Since smooth windowing
+   requires specialized algorithms, this instead keeps n-many operators in memory, spanning
+   the given `interval`.  This means that memory usage will be increased, and if `interval`
+   is not an even multiple of the period, the value will be approximate.
+
+   The given operator must be combinable, which is automatically true of any composition of
+   the built-in operators, and any operator defined via `narrator.core/monoid`."
+  [interval operator]
+  (let [operator (compile-operators operator)
+        windowed-values (atom (sorted-map))
+        op (AtomicReference. (create operator))
+        combine-fn (combiner operator)]
+    (assert combine-fn "Any `moving` operator must be combinable.")
+    (stream-aggregator-generator
+      :ordered? (ordered? operator)
+      :emit (emitter operator)
+      :create (fn []
+                (let [now *now-fn*
+                      trimmed-values (fn [m]
+                                       (let [t (now)
+                                             cutoff (- t interval)]
+                                         (->> m
+                                           (drop-while #(<= (- (key %) 0.001) cutoff))
+                                           (into (sorted-map)))))]
+                  (assert *now-fn* "No global clock defined.")
+                  (stream-aggregator
+                    :process #(process-all! (.get op) %)
+                    :flush #(flush-operator (.get op))
+                    :deref #(combine-fn
+                              (clojure.core/concat
+                                (map deref (vals (trimmed-values @windowed-values)))
+                                [@(.get op)]))
+                    :reset (fn []
+                             (let [op' (create operator)
+                                   op (.getAndSet op op')
+                                   t (now)
+                                   cutoff (- (now) interval)]
+                               (swap! windowed-values
+                                 #(assoc (trimmed-values %) t op'))))))))))

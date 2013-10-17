@@ -25,7 +25,7 @@
           error [0.001 0.01 0.02 0.05 0.1]]
       (is
         (< (false-positive-rate
-             (compile-operators* (n/distinct-by identity {:cardinality cardinality, :error error}))
+             (compile-operators* (n/quasi-distinct-by identity {:cardinality cardinality, :error error}))
              cardinality)
           (+ error (/ error 5)))))))
 
