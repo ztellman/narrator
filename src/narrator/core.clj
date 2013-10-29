@@ -270,6 +270,7 @@
   []
   (stream-aggregator-generator
     :ordered? true
+    :combine #(apply concat %)
     :create (fn []
               (let [acc (atom (ArrayList.))]
                 (stream-aggregator

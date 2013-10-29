@@ -152,14 +152,19 @@
 ;;;
 
 (deftest ^:benchmark benchmark-query-seq
+  (println "rate")
   (c/quick-bench
     (query-seq
       n/rate
       (range 1e6)))
+
+  (println "group-by even?")
   (c/quick-bench
     (query-seq
       (n/group-by even? n/rate)
       (range 1e6)))
+
+  (println "group-by rem 4")
   (c/quick-bench
     (query-seq
       (n/group-by #(rem % 4) n/rate)

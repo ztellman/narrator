@@ -33,6 +33,10 @@
           sample-size 1024}}]
      (stream-aggregator-generator
        :ordered? false
+       :combine (fn [s]
+                  (if (empty? (rest s))
+                    s
+                    (->> s (apply concat) shuffle (take sample-size))))
        :create
        (fn []
          (let [sample-size (long sample-size)

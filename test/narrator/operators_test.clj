@@ -16,4 +16,9 @@
   (println "sum")
   (let [op (compile-operators* n/sum)]
     (c/quick-bench
+      (process-all! op (range 1e3))))
+
+  (println "mean")
+  (let [op (compile-operators* n/mean)]
+    (c/quick-bench
       (process-all! op (range 1e3)))))

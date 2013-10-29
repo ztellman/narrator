@@ -113,7 +113,7 @@ The structural query descriptors work great when we know the structure of the da
 
 In this operator, we group each task by their `:name`, first counting their frequency, but also taking the list of `:children`, concatenating it such that each element is propagated forward as an individual message, and then fed back into the same query.
 
-### core.async integration
+### core.async and lamina integration
 
 If `core.async` is included in the classpath, then Narrator also provides a `narrator.query/query-channel` function, which behaves similarly to `query-seq`, but can also be used to process realtime streams.  A similar capability for [Lamina](https://github.com/ztellman/lamina) is provided via `narrator.query/query-lamina-channel`.
 
@@ -142,7 +142,14 @@ If the values are numbers, `quantiles` can be used to give the statistical distr
 {0.999 998.001, 0.99 989.01, 0.95 949.05, 0.9 899.1, 0.5 499.5}
 ```
 
-When trying to remove duplicate values from large datasets, the memory cost can be quite high.  Using Bloom Filters, `quasi-distinct-by` allows approximate duplicate removal using much less memory, with tunable error rates.  The value used for duplicate checks must be a string or keyword:
+The mean value of the numbers can be determined using `mean`:
+
+```clj
+> (query-seq n/mean (range 1000))
+499.5
+```
+
+When trying to remove duplicate values from large datasets, the memory cost can be quite high.  Using Bloom Filters, `quasi-distinct-by` allows approximate duplicate removal using much less memory, with tunable error rates.  The facet used for duplicate checks must be a string or keyword:
 
 ```clj
 > (query-seq (n/quasi-distinct-by identity) [:a :a :b :c])
@@ -156,7 +163,7 @@ Measuring cardinality of a large dataset can also be very memory intensive.  Usi
 10
 ```
 
-A windowed variant of any operator may be defined via `(moving interval operator)`.  This requires that a `:timestamp` be specified, so that the window may be moved.
+A moving-windowed variant of any operator may be defined via `(moving interval operator)`.  This requires that a `:timestamp` be specified, so that the window may be moved.
 
 ```clj
 > (map :value 

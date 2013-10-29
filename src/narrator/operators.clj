@@ -48,6 +48,27 @@
                      :deref #(.get cnt)
                      :reset #(when clear-on-reset? (.set cnt 0))))))))
 
+(defn-operator mean
+  "Yields the mean value of all messages.  If `clear-on-reset?` is true, it will be reset at
+   the beginning of every period.  Emits `NaN` if no messages are received."
+  ([]
+     (mean nil))
+  ([{:keys [clear-on-reset?]
+     :or {clear-on-reset? true}}]
+     (stream-aggregator-generator
+       :combine #(map + %&)
+       :emit (fn [[sum cnt]]
+               (if (zero? cnt)
+                 Double/NaN
+                 (/ sum cnt)))
+       :ordered? false
+       :create (fn []
+                 (let [v (atom [0.0 0])]
+                   (stream-aggregator
+                     :process (fn [ns] (swap! v (fn [[sum cnt]] [(+ sum (reduce + ns)) (+ cnt (count ns))])))
+                     :deref #(deref v)
+                     :reset #(when clear-on-reset? (reset! v [0.0 0]))))))))
+
 (defn-operator group-by
   "Splits the stream by `facet`, and applies `ops` to the substreams in parallel."
   ([facet]
