@@ -4,6 +4,10 @@ Narrator is a library for reducing streams of data into concise, high-level desc
 
 ### usage
 
+```clj
+[narrator "0.1.0"]
+```
+
 Narrator transforms streams of data into periodically sampled values.  This is most easily done using `narrator.query/query-seq`:
 
 ```clj
