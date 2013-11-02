@@ -55,19 +55,16 @@
      (mean nil))
   ([{:keys [clear-on-reset?]
      :or {clear-on-reset? true}}]
-     (stream-aggregator-generator
-       :combine #(map + %&)
+     (monoid-aggregator
+       :clear-on-reset? clear-on-reset?
+       :initial (constantly [0.0 0])
        :emit (fn [[sum cnt]]
                (if (zero? cnt)
                  Double/NaN
                  (/ sum cnt)))
-       :ordered? false
-       :create (fn []
-                 (let [v (atom [0.0 0])]
-                   (stream-aggregator
-                     :process (fn [ns] (swap! v (fn [[sum cnt]] [(+ sum (reduce + ns)) (+ cnt (count ns))])))
-                     :deref #(deref v)
-                     :reset #(when clear-on-reset? (reset! v [0.0 0]))))))))
+       :pre-process (fn [n] [n 1])
+       :combine (fn [[s-a c-a] [s-b c-b]]
+                  [(+ s-a s-b) (+ c-a c-b)]))))
 
 (defn-operator group-by
   "Splits the stream by `facet`, and applies `ops` to the substreams in parallel."
@@ -189,16 +186,18 @@
                                        (let [t (now)
                                              cutoff (- t interval)]
                                          (->> m
-                                           (drop-while #(<= (- (key %) 0.001) cutoff))
+                                           (drop-while #(< (key %) cutoff))
                                            (into (sorted-map)))))]
                   (assert *now-fn* "No global clock defined.")
                   (stream-aggregator
                     :process #(process-all! (.get op) %)
                     :flush #(flush-operator (.get op))
-                    :deref #(combine-fn
-                              (clojure.core/concat
-                                (map deref (vals (trimmed-values @windowed-values)))
-                                [@(.get op)]))
+                    :deref #(->> windowed-values
+                              deref
+                              trimmed-values
+                              vals
+                              (map deref)
+                              combine-fn)
                     :reset (fn []
                              (let [op' (create operator)
                                    op (.getAndSet op op')

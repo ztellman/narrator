@@ -64,5 +64,5 @@
                  (dotimes [i cnt]
                    (aset ary i (.get samples i)))
 
-                 ary))))))))
+                 (seq ary)))))))))
 

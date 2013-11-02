@@ -90,24 +90,6 @@
     (create [_] (create))
     (descriptor [_] descriptor)))
 
-(defn map-op
-  "Returns an unordered stream operator that maps `f` over every message."
-  [f]
-  (stream-processor-generator
-    :ordered? false
-    :create (constantly
-              (stream-processor
-                :reducer (r/map f)))))
-
-(defn mapcat-op
-  "Returns an unordered stream operator that mapcats `f` over every message."
-  [f]
-  (stream-processor-generator
-    :ordered? false
-    :create (constantly
-              (stream-processor
-                :reducer (r/mapcat f)))))
-
 (defn reducer-op
   "Returns an unordered stream operator that applies the reducer `f` over the message stream."
   [f]
@@ -117,12 +99,23 @@
               (stream-processor
                 :reducer f))))
 
+(defn map-op
+  "Returns an unordered stream operator that maps `f` over every message."
+  [f]
+  (reducer-op (r/map f)))
+
+(defn mapcat-op
+  "Returns an unordered stream operator that mapcats `f` over every message."
+  [f]
+  (reducer-op (r/mapcat f)))
+
 (defn monoid-aggregator
   "Returns an unordered stream aggregator that combines messages via the two-arity `combine`
    function, starting with an initial value from the zero-arity `initial`. If the combined
    value needs to be processed before emitting, a custom `emit` function may be defined."
-  [& {:keys [initial combine emit clear-on-reset?]
-      :or {emit identity}}]
+  [& {:keys [initial combine pre-process emit clear-on-reset?]
+      :or {emit identity
+           clear-on-reset? true}}]
   (stream-aggregator-generator
     :ordered? false
     :combine combine
@@ -133,7 +126,10 @@
                   :reset (when clear-on-reset? #(reset! val (initial)))
                   :deref #(deref val)
                   :process (fn [msgs]
-                             (let [val' (reduce combine (initial) msgs)]
+                             (let [msgs (if pre-process
+                                          (map pre-process msgs)
+                                          msgs)
+                                   val' (reduce combine (initial) msgs)]
                                (swap! val combine val'))))))))
 
 ;;;

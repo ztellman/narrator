@@ -176,7 +176,50 @@ A moving-windowed variant of any operator may be defined via `(moving interval o
 
 ### defining your own operators
 
+Narrator allows for two kinds of operators: processors and aggregators.  A processor will emit zero or more messages for each message it receives, while an aggregator will only emit one message per interval.
 
+A processor can be defined as just a bare function, which will emit the result of the function for each message received.  To define an arbitrary mapping between incoming and outgoing messages, a `clojure.core.reducer` function may be given to `narrator.core/reducer-op`.
+
+Many aggregators may be defined as a [monoid](http://en.wikipedia.org/wiki/Monoid), which is simpler than it may seem.  For instance, a sum aggregator may be defined like so:
+
+```clj
+(monoid-aggregator 
+  :initial (fn [] 0)
+  :combine +)
+```
+
+In this, we've defined an initial state, and a function that combines any two messages or states.Since both messages and our aggregate values are numbers, our combiner function can simply be `+`.  However, if we wanted to aggregate a list of all messages, we will need to make each message look like a list.  Do do this, we can define a `pre-processor`:
+
+```clj
+(monoid-aggregator
+  :initial (constantly (list))
+  :pre-processor list
+  :combine concat)
+```
+
+Here, we make sure each message is now a list of one message, before combining them all together via concatenation.
+
+However, sometimes it's too inefficient or simply not possible to define our aggregator as a monoid. In this case, we can use `narrator.core/stream-aggregator-generator`:
+
+```clj
+(stream-aggregator-generator
+  :combine (fn [sums] (reduce + sums))
+  :ordered? false
+  :create (fn []
+            (let [cnt (atom 0)]
+              (stream-aggregator
+                :process (fn [msgs] (swap! cnt + (reduce + msgs)))
+                :deref (fn [] (deref cnt))
+                :reset (fn [] (reset! cnt 0))))))
+```
+
+This is equivalent to the sum example given above. Here, we've defined a **generator** that will create aggregators for our query.  The generator says it is not `:ordered?`, so the stream of messages can be processed in parallel.  It also defines a `:combine` function, which takes a sequence of values from the sub-aggregators and returns a single value.
+
+The `:create` callback returns an instance of the aggregator via `narrator.core/stream-aggregator`.  This aggregator closes over an atom containing the sum, and defines a `:process` callback that takes a sequence of messages and adds them to the count.  It defines a `:deref` function that returns the current count, and an optional `:reset` function which is called at the beginning of each new query interval.
+
+For each instance of the aggregator, the `:process` callback is guaranteed to only be called on one thread, so non-thread-safe operations and data structures can be used.  Likewise, `:deref` and `:reset` are guaranteed not to be called while messages are being processed, so no mutual exclusion is necessary. 
+
+Given these invariants, very high throughput message processing is possible, with automatic parallelization wherever possible.  The built-in operators in Narrator take full advantage of this.
 
 ### license
 
