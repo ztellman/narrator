@@ -225,6 +225,8 @@ For each instance of the aggregator, the `:process` callback is guaranteed to on
 
 Given these invariants, very high throughput message processing is possible, with automatic parallelization wherever possible.  The built-in operators in Narrator take full advantage of this.
 
+Full documentation can be found [here](http://ideolalia.com/narrator/).
+
 ### license
 
 Copyright © 2013 Zachary Tellman
