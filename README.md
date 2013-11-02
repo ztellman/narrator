@@ -20,7 +20,7 @@ nil
 10
 ```
 
-Here, we've composed `:foo` and `narrator.operators/sum` together, and applied them to the sequence.  `sum` and other operators can be called with a map of options, such as `(sum {:clear-on-reset? false})`, but as a convenience, if they are called with no parameters it parentheses can be omitted.  `sum` and `(sum)` are interchangeable.
+Here, we've composed `:foo` and `narrator.operators/sum` together, and applied them to the sequence.  `sum` and other operators can be called with a map of options, such as `(sum {:clear-on-reset? false})`, but as a convenience, if they are called with no parameters the parentheses can be omitted.  `sum` and `(sum)` are interchangeable.
 
 Since we haven't defined a period, `query-seq` consumes the entire sequence, first mapping `:foo` over each element, and then summing the result.  However, we can also do a periodic analysis of the sequence:
 
