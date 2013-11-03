@@ -9,7 +9,7 @@
   <body>
     <header>
       <div id="header">
-        <h1 class="project-title">Narrator 0.1.0 API documentation</h1>
+        <h1 class="project-title">Narrator 0.1.1-SNAPSHOT API documentation</h1>
       </div>
     </header>
     <navigation>
@@ -22,7 +22,7 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var--%3EAccumulator">-&gt;Accumulator</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var--%3EAccumulator">-&gt;Accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-accumulator">accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-acquire">acquire</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-acquire-all">acquire-all</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-add%21">add!</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-buffered-aggregator">buffered-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-release">release</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-semaphore">semaphore</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-submit">submit</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-thread-local-aggregator">thread-local-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-with-exclusive-lock">with-exclusive-lock</a></li>
         </ul>
       </div>
     </navigation>
@@ -33,12 +33,92 @@
 </div>
         <div class="ns-vars">
           <div class="public">
-            <h3><a id="var--%3EAccumulator" class="source var-name" href="/src/narrator/executor.clj">-&gt;Accumulator</a></h3>
+            <h3><a id="var--%3EAccumulator" class="source var-name" href="src/narrator/executor.clj">-&gt;Accumulator</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
             <div class="usage">[ary capacity idx]</div>
             
             
             <div class="doc"><p>Positional factory function for class narrator.executor.Accumulator.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-accumulator" class="source var-name" href="src/narrator/executor.clj">accumulator</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[capacity]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-acquire" class="source var-name" href="src/narrator/executor.clj">acquire</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[semaphore]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-acquire-all" class="source var-name" href="src/narrator/executor.clj">acquire-all</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[semaphore]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-add%21" class="source var-name" href="src/narrator/executor.clj">add!</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[_ x]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-buffered-aggregator" class="source var-name" href="src/narrator/executor.clj">buffered-aggregator</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[&amp; {:keys [operator capacity semaphore], :or {capacity 1024, semaphore (semaphore)}}]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-release" class="source var-name" href="src/narrator/executor.clj">release</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[semaphore]</div><div class="usage">[semaphore permits]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-semaphore" class="source var-name" href="src/narrator/executor.clj">semaphore</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-submit" class="source var-name" href="src/narrator/executor.clj">submit</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[f semaphore hash]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-thread-local-aggregator" class="source var-name" href="src/narrator/executor.clj">thread-local-aggregator</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[generator]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-with-exclusive-lock" class="source var-name" href="src/narrator/executor.clj">with-exclusive-lock</a></h3>
+            <h4 class="var-type macro" id="var-type">macro</h4>
+            <div class="usage">[semaphore &amp; body]</div>
+            
+            
+            <div class="doc">
 </div>
           </div>
         </div>
