@@ -1,6 +1,6 @@
 ![](https://dl.dropboxusercontent.com/u/174179/narrator/storyteller.png)
 
-Narrator is a library for reducing streams of data into concise, high-level descriptions.  Stream processing is automatically parallelized wherever possible, and the provided operators are designed to be memory-efficient, allowing for high-throughput analysis of large historical data sets or unbounded realtime streams.
+Narrator is for analyzing and aggregating streams of data.  Stream processing is automatically parallelized wherever possible, and the provided operators are designed to be memory-efficient, allowing for high-throughput analysis of large historical data sets or unbounded realtime streams.
 
 ### usage
 
@@ -27,9 +27,9 @@ Since we haven't defined a period, `query-seq` consumes the entire sequence, fir
 
 ```clj
 > (query-seq 
-    [:foo n/rate] 
+    n/rate
     {:period 5, :timestamp :foo} 
-    (map #(hash-map :foo %) (range 10)))
+    (range 10))
 ({:timestamp 5, :value 5} 
  {:timestamp 10, :value 5})
 ```
