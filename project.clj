@@ -1,4 +1,4 @@
-(defproject narrator "0.1.0"
+(defproject narrator "0.1.1-SNAPSHOT"
   :description "concise, expressive stream analysis"
   :license {:name "MIT License"
             :url ""}
