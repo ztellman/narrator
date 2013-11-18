@@ -143,8 +143,10 @@ If the values are numbers, `quantiles` can be used to give the statistical distr
 
 ```clj
 > (query-seq n/quantiles (range 1000))
-{0.999 998.001, 0.99 989.01, 0.95 949.05, 0.9 899.1, 0.5 499.5}
+{0.999 999.0, 0.99 990.0, 0.95 950.0, 0.9 900.0, 0.5 500.0}
 ```
+
+Note that these values are approximate, using the Q-Digest algorithm to extract a representative sample from the stream.
 
 The mean value of the numbers can be determined using `mean`:
 
