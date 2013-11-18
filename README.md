@@ -29,7 +29,8 @@ Since we haven't defined a period, `query-seq` consumes the entire sequence, fir
 > (query-seq 
     n/rate
     {:period 5, :timestamp :foo} 
-    (range 10))
+    (for [n (range 10)]
+      {:foo n}))
 ({:timestamp 5, :value 5} 
  {:timestamp 10, :value 5})
 ```
