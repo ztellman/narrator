@@ -110,10 +110,12 @@ The structural query descriptors work great when we know the structure of the da
       {:rate n/rate
        :children [:children n/concat n/recur]})
     [x])
-{"foo" {:rate 1
-        :children {"bar" {:rate 1
-                          :children {"quux" {:rate 1, :children {}}}
-                                     "baz" {:rate 2, :children {}}}}}}
+{"foo" {:rate 1,
+        :children {"bar" {:rate 1,
+                          :children {"quux" {:rate 1,
+                                             :children nil}}},
+                   "baz" {:rate 2,
+                          :children nil}}}}
 ```
 
 In this operator, we group each task by their `:name`, first counting their frequency, but also taking the list of `:children`, concatenating it such that each element is propagated forward as an individual message, and then fed back into the same query.
