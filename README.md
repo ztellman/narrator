@@ -175,7 +175,7 @@ A moving-windowed variant of any operator may be defined via `(moving interval o
       (n/moving 3 n/rate) 
       {:timestamp identity :period 1} 
       (range 10)))
-(1 2 3 3 3 3 3 3 3 3)
+(0 1 2 3 3 3 3 3 3 3)
 ```
 
 ### defining your own operators
@@ -184,7 +184,7 @@ Narrator allows for two kinds of operators: processors and aggregators.  A proce
 
 A processor can be defined as just a bare function, which will emit the result of the function for each message received.  To define an arbitrary mapping between incoming and outgoing messages, a `clojure.core.reducer` function may be given to `narrator.core/reducer-op`.
 
-Many aggregators may be defined as a [monoid](http://en.wikipedia.org/wiki/Monoid), which is simpler than it may seem.  For instance, a sum aggregator may be defined like so:
+Many aggregators may be defined as a [monoid](http://en.wikipedia.org/wiki/Monoid), which is simpler than it may seem.  For instance, a sum aggregator may be defined using `narrator.core/monoid-aggregator`:
 
 ```clj
 (monoid-aggregator 

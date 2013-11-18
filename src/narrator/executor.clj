@@ -132,7 +132,7 @@
 ;;;
 
 (definterface+ IAccumulator
-  (add! [_ x]))
+  (^boolean add! [_ x]))
 
 (deftype+ Accumulator
   [^objects ary
@@ -192,9 +192,11 @@
       (process! [this msg]
         (loop []
           (let [acc @acc-ref]
-            (when-not (add! acc msg)
-              (flush acc *has-exclusive-lock*)
-              (recur)))))
+            (if (add! acc msg)
+              nil
+              (do
+                (flush acc *has-exclusive-lock*)
+                (recur))))))
 
       clojure.lang.IDeref
       (deref [_]
