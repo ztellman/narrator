@@ -27,6 +27,6 @@
         (< (false-positive-rate
              (compile-operators* (n/quasi-distinct-by identity {:cardinality cardinality, :error error}))
              cardinality)
-          (+ error (/ error 5)))))))
+          (+ error (/ error 3)))))))
 
 
