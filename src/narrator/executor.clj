@@ -23,9 +23,9 @@
 
 ;;;
 
-(def ^:private ^:const num-cores (.availableProcessors (Runtime/getRuntime)))
+(def ^:private num-cores (.availableProcessors (Runtime/getRuntime)))
 
-(def ^:private ^:const max-permits (* 2 num-cores))
+(def ^:private max-permits (* 2 num-cores))
 
 ;;;
 
