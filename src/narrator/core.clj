@@ -243,7 +243,9 @@
                                                     #(process-all! aggr (r/foldcat (pre %))))
                                                   #(process-all! aggr %))
                                      flush-ops (filter #(instance? IBufferedAggregator %) ops)]
-                                 (*compiled-operator-wrapper*
+                                 ((if top-level?
+                                    *compiled-operator-wrapper*
+                                    identity)
                                    (stream-aggregator
                                      :ordered? ordered?
                                      :reset #(doseq [r ops] (reset-operator! r))

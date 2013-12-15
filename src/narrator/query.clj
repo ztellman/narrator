@@ -70,7 +70,7 @@
                                               t (long (timestamp x))]
                                           (if (p/< t end)
                                             (do
-                                              (c/process! op x)
+                                              (c/process! op (value x))
                                               (recur (p/inc idx)))
                                               
                                             ;; stopping mid-chunk, cons the remainder back on
