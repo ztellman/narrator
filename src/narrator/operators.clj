@@ -69,7 +69,7 @@
 (defn-operator group-by
   "Splits the stream by `facet`, and applies `ops` to the substreams in parallel."
   ([facet]
-     (group-by facet nil nil))
+     (group-by facet nil accumulator))
   ([facet ops]
      (group-by facet nil ops))
   ([facet
