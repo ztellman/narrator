@@ -48,6 +48,28 @@
                      :deref #(.get cnt)
                      :reset #(when clear-on-reset? (.set cnt 0))))))))
 
+(defn-operator delta
+  "Returns the difference between the current and previous values.  The first value will 
+   be emitted as-is."
+  ([]
+     (delta nil))
+  ([{:keys [clear-on-reset?]
+     :or {clear-on-reset? true}}]
+     (stream-processor-generator
+       :ordered? true
+       :create (fn []
+                 (let [ref (AtomicReference. nil)]
+                   (stream-processor
+                     :reducer (r/map
+                                (fn [x]
+                                  (let [x' (.getAndSet ref x)]
+                                    (if (nil? x')
+                                      x
+                                      (- x x')))))
+                     :reset (when clear-on-reset?
+                              #(.set ref nil))))))))
+
+
 (defn-operator mean
   "Yields the mean value of all messages.  If `clear-on-reset?` is true, it will be reset at
    the beginning of every period.  Emits `NaN` if no messages are received."
