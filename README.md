@@ -158,6 +158,13 @@ The mean value of the numbers can be determined using `mean`:
 499.5
 ```
 
+The difference between successive values can be determined using `delta`.  The first value will always be emitted as-is.
+
+```clj
+> (query-seq n/delta (range 5 10))
+(5 1 1 1 1)
+```
+
 When trying to remove duplicate values from large datasets, the memory cost can be quite high.  Using Bloom Filters, `quasi-distinct-by` allows approximate duplicate removal using much less memory, with tunable error rates.  The facet used for duplicate checks must be a string or keyword:
 
 ```clj
