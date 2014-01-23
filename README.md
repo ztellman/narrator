@@ -165,6 +165,13 @@ The difference between successive values can be determined using `delta`.  The f
 (5 1 1 1 1)
 ```
 
+The most recent value within a period, or overall, can be determined using `latest`:
+
+```clj
+> (query-seq n/latest (range 10))
+10
+```
+
 When trying to remove duplicate values from large datasets, the memory cost can be quite high.  Using Bloom Filters, `quasi-distinct-by` allows approximate duplicate removal using much less memory, with tunable error rates.  The facet used for duplicate checks must be a string or keyword:
 
 ```clj

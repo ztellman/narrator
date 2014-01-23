@@ -49,7 +49,7 @@
                      :reset #(when clear-on-reset? (.set cnt 0))))))))
 
 (defn-operator delta
-  "Returns the difference between the current and previous values.  The first value will 
+  "Emits the difference between the current and previous values.  The first value will 
    be emitted as-is."
   ([]
      (delta nil))
@@ -68,6 +68,19 @@
                                       (- x x')))))
                      :reset (when clear-on-reset?
                               #(.set ref nil))))))))
+
+(defn-operator latest
+  "Emits the latest value seen within the period, or within the entire sequence if no period is defined."
+  []
+  (stream-aggregator-generator
+    :ordered? false
+    :combine last
+    :create (fn []
+              (let [ref (atom nil)]
+                (stream-aggregator
+                  :process (fn [msgs]
+                             (reset! ref (last msgs)))
+                  :deref #(deref ref))))))
 
 
 (defn-operator mean
