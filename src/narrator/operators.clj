@@ -69,6 +69,23 @@
                      :reset (when clear-on-reset?
                               #(.set ref nil))))))))
 
+(defn-operator transitions
+  "Emits only values which differ from the previous value.  The first value is always emitted."
+  ([]
+     (transitions nil))
+  ([{:keys [clear-on-reset?]
+     :or {clear-on-reset? false}}]
+     (stream-processor-generator
+       :ordered? false
+       :create (fn []
+                 (let [ref (AtomicReference. ::none)]
+                   (stream-processor
+                     :reducer (r/filter
+                                (fn [x]
+                                  (not= x (.getAndSet ref x))))
+                     :reset (when clear-on-reset?
+                              #(.set ref ::none))))))))
+
 (defn-operator latest
   "Emits the latest value seen within the period, or within the entire sequence if no period is defined."
   []

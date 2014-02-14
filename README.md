@@ -165,6 +165,13 @@ The difference between successive values can be determined using `delta`.  The f
 (5 1 1 1 1)
 ```
 
+To filter out only values which have changed, use `transitions`.
+
+```clj
+> (query-seq n/transitions [1 1 2 2 2 3 3])
+(1 2 3)
+```
+
 The most recent value within a period, or overall, can be determined using `latest`:
 
 ```clj
