@@ -8,7 +8,9 @@ Narrator is for analyzing and aggregating streams of data.  Stream processing is
 [narrator "0.1.0"]
 ```
 
-Narrator transforms streams of data into periodically sampled values.  This is most easily done using `narrator.query/query-seq`, which takes a **query descriptor**, an optional map of arguments, and an input sequence.  In the simplest case, it can be used to map a function over the input sequence:
+Narrator transforms streams of data into periodically sampled values.  This is most easily done using `narrator.query/query-seq`, which takes a query descriptor, an optional map of arguments, and an input sequence.  
+
+In the simplest case, the query descriptor can just be a function, which will be mapped over the input sequence:
 
 ```clj
 > (use 'narrator.query)
