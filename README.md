@@ -8,21 +8,67 @@ Narrator is for analyzing and aggregating streams of data.  Stream processing is
 [narrator "0.1.0"]
 ```
 
-Narrator transforms streams of data into periodically sampled values.  This is most easily done using `narrator.query/query-seq`:
+Narrator transforms streams of data into periodically sampled values.  This is most easily done using `narrator.query/query-seq`, which takes a **query descriptor**, an optional map of arguments, and an input sequence.  In the simplest case, it can be used to map a function over the input sequence:
+
+```clj
+> (use 'narrator.query)
+nil
+> (query-seq
+    inc
+    [0 1 2])
+(1 2 3)
+```
+
+Narrator also provides special operators in the `narrator.operators` namespace.  Some of these operators are **aggregators**, which reduce a stream of values to a single representative value. One such operator is `narrator.operators/sum`.
+
+```clj
+> (require '[narrator.operators :as n])
+nil
+> (query-seq
+    (n/sum)
+    (range 10))
+45
+```
+
+`sum` and other operators can be called with a map of options, such as `(sum {:clear-on-reset? false})`, but as a convenience, if they are called with no parameters the parentheses can be omitted.  `sum` and `(sum)` are interchangeable.
+
+Operators and functions can be composed by placing them in a vector.  Composition is left-to-right:
 
 ```clj
 > (use 'narrator.query)
 nil
 > (require '[narrator.operators :as n])
+nil
 > (query-seq 
     [:foo (n/sum)] 
     (repeat 10 {:foo 1}))
 10
 ```
 
-Here, we've composed `:foo` and `narrator.operators/sum` together, and applied them to the sequence.  `sum` and other operators can be called with a map of options, such as `(sum {:clear-on-reset? false})`, but as a convenience, if they are called with no parameters the parentheses can be omitted.  `sum` and `(sum)` are interchangeable.
+The operators given to `query-seq` can be any combination of Clojure functions and Narrator operators.  These can be used alone, or composed in any order:
 
-Since we haven't defined a period, `query-seq` consumes the entire sequence, first mapping `:foo` over each element, and then summing the result.  However, we can also do a periodic analysis of the sequence:
+```clj
+> (query-seq inc (range 5))
+(1 2 3 4 5)
+> (query-seq n/rate (range 5))
+5
+> (query-seq [n/rate inc] (range 5))
+6
+```
+
+Notice in the last example we're incrementing the output of `rate`, which is an aggregator.  We can even compose multiple periodic operators together, though this may give us odd results:
+
+```clj
+> (query-seq [n/rate n/rate] (range 5))
+1
+```
+
+Since there's only one value emitted by the first `rate`, this will always return `1`, no matter what the input.
+
+---
+
+
+Since we haven't defined a period in any of our queries, `query-seq` consumes the entire sequence.  However, we can also define a `:period`, and analyze each interval separately:
 
 
 ```clj
@@ -37,25 +83,7 @@ Since we haven't defined a period, `query-seq` consumes the entire sequence, fir
 
 Here we've defined a `:timestamp` function that will give us the time at which each message occurred, and a `:period` at which we want to emit the result.  In this case we're asking for the rate of message over that period, which is one message for each unit of time.
 
-The operators given to `query-seq` can either be normal Clojure functions, which will be mapped over the messages, or special operators that filter or aggregate messages.  These can be used alone, or composed in any order:
-
-```clj
-> (query-seq inc (range 5))
-(1 2 3 4 5)
-> (query-seq n/rate (range 5))
-5
-> (query-seq [n/rate inc] (range 5))
-6
-```
-
-Notice in the last example we're incrementing the output of `rate`, which is a periodic operator.  We can even compose multiple periodic operators together, though this may give us odd results:
-
-```clj
-> (query-seq [n/rate n/rate] (range 5))
-1
-```
-
-Since there's only one value emitted by the first `rate`, this will always return `1`, no matter what the input.
+---
 
 We can also do mutliple simultaneous analyses:
 
