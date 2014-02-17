@@ -37,10 +37,6 @@ nil
 Operators and functions can be composed by placing them in a vector.  Composition is left-to-right:
 
 ```clj
-> (use 'narrator.query)
-nil
-> (require '[narrator.operators :as n])
-nil
 > (query-seq 
     [:foo (n/sum)] 
     (repeat 10 {:foo 1}))
