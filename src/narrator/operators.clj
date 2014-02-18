@@ -238,20 +238,18 @@
                                        (let [t (now)
                                              cutoff (- t interval)]
                                          (->> m
-                                           (drop-while #(< (key %) cutoff))
+                                           (drop-while #(<= (key %) cutoff))
                                            (into (sorted-map)))))]
                   (assert *now-fn* "No global clock defined.")
                   (stream-aggregator
                     :process #(process-all! op %)
                     :flush #(flush-operator op)
-                    :deref #(->> windowed-values
-                              deref
-                              trimmed-values
-                              vals
-                              combine-fn)
-                    :reset (fn []
-                             (let [t (now)
-                                   cutoff (- (now) interval)]
-                               (swap! windowed-values
-                                 #(assoc (trimmed-values %) t @op))
-                               (reset-operator! op)))))))))
+                    :deref (fn [] 
+                             (swap! windowed-values
+                               #(assoc (trimmed-values %) (now) @op))
+                             (->> windowed-values
+                               deref
+                               trimmed-values
+                               vals
+                               combine-fn))
+                    :reset #(reset-operator! op)))))))

@@ -227,7 +227,7 @@ A moving-windowed variant of any operator may be defined via `(moving interval o
       (n/moving 3 n/rate) 
       {:timestamp identity :period 1} 
       (range 10)))
-(0 1 2 3 3 3 3 3 3 3)
+(1 2 3 3 3 3 3 3 3 3)
 ```
 
 ### defining your own operators
