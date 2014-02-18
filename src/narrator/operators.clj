@@ -226,8 +226,8 @@
   [interval operator]
   (let [operator (compile-operators operator)
         windowed-values (atom (sorted-map))
-        op (AtomicReference. (create operator))
-        combine-fn (combiner operator)]
+        combine-fn (combiner operator)
+        op (create operator)]
     (assert combine-fn "Any `moving` operator must be combinable.")
     (stream-aggregator-generator
       :ordered? (ordered? operator)
@@ -242,18 +242,16 @@
                                            (into (sorted-map)))))]
                   (assert *now-fn* "No global clock defined.")
                   (stream-aggregator
-                    :process #(process-all! (.get op) %)
-                    :flush #(flush-operator (.get op))
+                    :process #(process-all! op %)
+                    :flush #(flush-operator op)
                     :deref #(->> windowed-values
                               deref
                               trimmed-values
                               vals
-                              (map deref)
                               combine-fn)
                     :reset (fn []
-                             (let [op' (create operator)
-                                   op (.getAndSet op op')
-                                   t (now)
+                             (let [t (now)
                                    cutoff (- (now) interval)]
                                (swap! windowed-values
-                                 #(assoc (trimmed-values %) t op'))))))))))
+                                 #(assoc (trimmed-values %) t @op))
+                               (reset-operator! op)))))))))
