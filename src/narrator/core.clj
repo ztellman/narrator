@@ -15,11 +15,21 @@
 
 (definterface+ StreamOperatorGenerator
   (aggregator? [_])
-  (emitter [_])
+  (emitter- [_])
   (combiner [_])
   (ordered? [_])
   (create [_])
   (descriptor [_]))
+
+(defn emitter [x]
+  (or
+    (when (instance? StreamOperatorGenerator x)
+      (emitter- x))
+    (-> x meta ::emitter)
+    identity))
+
+(defn deref' [x]
+  ((emitter x) @x))
 
 (definterface+ StreamOperator
   (reducer [_])
@@ -45,6 +55,7 @@
   [& {:keys [ordered? create descriptor]}]
   (assert create)
   (reify StreamOperatorGenerator
+    (emitter- [_] identity)
     (combiner [_] nil)
     (aggregator? [_] false)
     (ordered? [_] ordered?)
@@ -74,7 +85,7 @@
     IBufferedAggregator
     (process! [_ msg] (process [msg]))
     (flush-operator [_] (when flush (flush)))
-    
+
     clojure.lang.IDeref
     (deref [_] (deref))))
 
@@ -83,11 +94,11 @@
       :or {emit identity}}]
   (assert create)
   (reify StreamOperatorGenerator
-    (emitter [_] emit)
+    (emitter- [_] emit)
     (combiner [_] combine)
     (aggregator? [_] true)
     (ordered? [_] ordered?)
-    (create [_] (create))
+    (create [_] (with-meta (create) {::emitter emit}))
     (descriptor [_] descriptor)))
 
 (defn reducer-op
@@ -174,7 +185,7 @@
           emitter-fn (emitter gen)
           op (create gen)]
       (stream-processor
-        :reducer (r/map #(do (process! op %) (flush-operator op) (->> [@op] combiner-fn emitter-fn)))))
+        :reducer (r/map #(do (process! op %) (flush-operator op) (->> [(deref' op)] combiner-fn emitter-fn)))))
     (create gen)))
 
 (declare accumulator split)
@@ -186,6 +197,13 @@
     (map? x) (split x)
     (ifn? x) (map-op x)
     :else (throw (IllegalArgumentException. (str "Don't know how to handle " (pr-str x))))))
+
+(defn- combine-processors [fs]
+  (when-let [fs (->> fs
+                  (map reducer)
+                  reverse
+                  seq)]
+    (apply comp fs)))
 
 (defn compile-operators
   "Takes a descriptor of stream operations, and returns a function that generates a single
@@ -212,7 +230,12 @@
                  ordered? (or
                             (some ordered? pre)
                             (and (ordered? aggr) ;; assumes that we can do thread-local aggregation
-                              (not (combiner aggr))))]
+                              (not (combiner aggr))))
+                 pre (map create-stream-processor pre)
+                 post (map create-stream-processor post)
+                 ops (concat pre post)
+                 pre (combine-processors pre)
+                 post (combine-processors post)]
              (deliver generator
                (with-meta
                  (stream-aggregator-generator
@@ -220,23 +243,17 @@
                    :ordered? ordered?
                    :combine (when-not post
                               (combiner aggr))
+                   :emit (let [aggr-emitter (emitter aggr)]
+                           (if post
+                             #(first (into [] (post [(aggr-emitter %)])))
+                             aggr-emitter))
                    :create (fn []
                              (with-bindings (if top-level?
                                               {#'*top-level-generator* generator}
                                               {})
                                (let [aggr-generator (*aggregator-generator-wrapper* aggr)
-                                     aggr-emitter (emitter aggr-generator)
                                      aggr (create aggr-generator)
-                                     pre (map create-stream-processor pre)
-                                     post (map create-stream-processor post)
-                                     ops (concat pre [aggr] post)
-                                     pre (when (seq pre)
-                                           (->> pre (map reducer) reverse (apply comp)))
-                                     post (when (seq post)
-                                            (->> post (map reducer) reverse (apply comp)))
-                                     deref-fn (if post
-                                                #(first (into [] (post [(aggr-emitter @aggr)])))
-                                                #(aggr-emitter (deref aggr)))
+                                     ops (conj ops aggr)
                                      process-fn (if pre
                                                   (if ordered?
                                                     #(process-all! aggr (into [] (pre %)))
@@ -250,7 +267,7 @@
                                      :ordered? ordered?
                                      :reset #(doseq [r ops] (reset-operator! r))
                                      :flush #(doseq [r flush-ops] (flush-operator r))
-                                     :deref deref-fn
+                                     :deref #(deref aggr)
                                      :process process-fn))))))
                  {::compiled true}))
              @generator))))))
@@ -285,18 +302,24 @@
     (stream-aggregator-generator
       :descriptor name->ops
       :ordered? ordered?
-      :combine (when (every? combiner generators)
-                 (fn [xs]
-                   (zipmap
-                     ks
-                     (map
-                       (fn [gen k]
-                         (->> xs
-                           (map #(get % k ::none))
-                           (remove #(identical? ::none %))
-                           ((combiner gen))))
-                       generators
-                       ks))))
+      :combine (let [cs (map combiner generators)]
+                 (when (every? (complement nil?) cs)
+                   (fn [xs]
+                     (zipmap
+                       ks
+                       (map
+                         (fn [f k]
+                           (->> xs
+                             (map #(get % k ::none))
+                             (remove #(identical? ::none %))
+                             (f)))
+                         cs
+                         ks)))))
+      :emit (let [emitters (map emitter generators)]
+              (fn [m]
+                (zipmap
+                  ks
+                  (map #(%1 (get m %2)) emitters ks))))
       :create (fn []
                 (let [ops (doall
                             (map create generators))]

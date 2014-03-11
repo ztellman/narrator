@@ -58,9 +58,9 @@
     (let [end (long (+ start-time period))
           s' (loop [s input-seq]
                (when-not (empty? s)
-                   
+
                  (if (chunked-seq? s)
-                     
+
                    ;; chunked seq
                    (let [c (chunk-first s)
                          cnt (count c)
@@ -72,7 +72,7 @@
                                             (do
                                               (c/process! op (value x))
                                               (recur (p/inc idx)))
-                                              
+
                                             ;; stopping mid-chunk, cons the remainder back on
                                             (let [remaining (p/- cnt idx)
                                                   b (chunk-buffer remaining)]
@@ -83,7 +83,7 @@
                      (if recur?
                        (recur s)
                        s))
-                     
+
                    ;; non-chunked seq
                    (let [x (first s)
                          t (long (timestamp x))]
@@ -96,7 +96,7 @@
       (reset! current-time end)
       (cons
         {:timestamp end
-         :value (let [x @op]
+         :value (let [x (c/deref' op)]
                   (c/reset-operator! op)
                   x)}
         (when-not (empty? s')
@@ -181,11 +181,11 @@
                         ch ([msg _] msg))]
               (if (or (nil? msg) (identical? ::flush msg))
 
-                ;; flush 
+                ;; flush
                 (do
                   (c/flush-operator op)
                   (reset! current-time (now))
-                  (let [x @op]
+                  (let [x (c/deref' op)]
                     (c/reset-operator! op)
                     (a/>! out x)
                     (when-not (nil? msg)
@@ -208,17 +208,17 @@
                                    (+ (timestamp msg) period)))]
                 (if (or (nil? msg) (>= (timestamp msg) next-flush))
 
-                  ;; flush 
+                  ;; flush
                   (do
                     (c/flush-operator op)
                     (reset! current-time next-flush)
-                    (let [x @op]
+                    (let [x (c/deref' op)]
                       (c/reset-operator! op)
                       (a/>! out {:timestamp (or next-flush 0) :value x})
                       (when-not (nil? msg)
                         (c/process! op (value msg))
                         (recur (+ next-flush period)))))
-                  
+
                   ;; process
                   (do
                     (c/process! op (value msg))
@@ -263,7 +263,7 @@
               (fn []
                 (lock/with-exclusive-lock lock
                   (c/flush-operator op)
-                  (let [x @op]
+                  (let [x (c/deref' op)]
                     (c/reset-operator! op)
                     x))))
             out)
@@ -278,7 +278,7 @@
             (fn []
               (lock/with-exclusive-lock lock
                 (c/flush-operator op)
-                (let [x @op]
+                (let [x (c/deref' op)]
                   (l/enqueue out x)
                   (l/close out))))))
 
@@ -294,7 +294,7 @@
                 (when (< @next-flush t)
                   (lock/with-exclusive-lock lock
                     (c/flush-operator op)
-                    (let [x @op]
+                    (let [x (c/deref' op)]
                       (c/reset-operator! op)
                       (l/enqueue out {:timestamp @next-flush :value x})
                       (reset! current-time @next-flush)
@@ -306,7 +306,7 @@
             (fn []
               (lock/with-exclusive-lock lock
                 (c/flush-operator op)
-                (let [x @op]
+                (let [x (c/deref' op)]
                   (l/enqueue out {:timestamp @next-flush :value x})
                   (l/close out)))))))
       out)))

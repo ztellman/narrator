@@ -49,7 +49,7 @@
                      :reset #(when clear-on-reset? (.set cnt 0))))))))
 
 (defn-operator delta
-  "Emits the difference between the current and previous values.  The first value will 
+  "Emits the difference between the current and previous values.  The first value will
    be emitted as-is."
   ([]
      (delta nil))
@@ -57,6 +57,7 @@
      :or {clear-on-reset? true}}]
      (stream-processor-generator
        :ordered? true
+       :combine #(apply + %)
        :create (fn []
                  (let [ref (AtomicReference. nil)]
                    (stream-processor
@@ -244,12 +245,11 @@
                   (stream-aggregator
                     :process #(process-all! op %)
                     :flush #(flush-operator op)
-                    :deref (fn [] 
+                    :deref (fn []
                              (swap! windowed-values
                                #(assoc (trimmed-values %) (now) @op))
                              (->> windowed-values
                                deref
-                               trimmed-values
                                vals
                                combine-fn))
                     :reset #(reset-operator! op)))))))
