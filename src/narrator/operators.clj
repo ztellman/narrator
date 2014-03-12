@@ -179,23 +179,27 @@
   "Passes the stream back through the top-level stream operator, allowing for analysis of
    nested data-structures."
   []
-  (stream-aggregator-generator
-    :ordered? false ;; we can assume this, and it doesn't change anything if we're wrong
-    :create (fn []
-              (let [context (capture-context)
-                    op (delay
-                         (with-bindings context
-                           (create @*top-level-generator*)))]
-                (stream-aggregator
-                  :process (fn [msgs]
-                             (when-not (empty? msgs)
-                               (process-all! @op msgs)))
-                  :flush #(when (realized? op)
-                            (flush-operator @op))
-                  :deref #(when (realized? op)
-                            @@op)
-                  :reset #(when (realized? op)
-                            (reset-operator! op)))))))
+  (let [combiner (promise)]
+    (stream-aggregator-generator
+      :ordered? false ;; we can assume this, and it doesn't change anything if we're wrong
+      :combine (fn [s] (@combiner s))
+      :create (fn []
+                (let [context (capture-context)
+                      op (delay
+                           (let [op (with-bindings context
+                                      (create @*top-level-generator*))]
+                             (deliver combiner @*top-level-generator*)
+                             op))]
+                  (stream-aggregator
+                    :process (fn [msgs]
+                               (when-not (empty? msgs)
+                                 (process-all! @op msgs)))
+                    :flush #(when (realized? op)
+                              (flush-operator @op))
+                    :deref #(when (realized? op)
+                              @@op)
+                    :reset #(when (realized? op)
+                              (reset-operator! op))))))))
 
 (defn-operator filter
   [predicate]

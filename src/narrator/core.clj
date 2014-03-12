@@ -241,8 +241,7 @@
                  (stream-aggregator-generator
                    :descriptor op-descriptor
                    :ordered? ordered?
-                   :combine (when-not post
-                              (combiner aggr))
+                   :combine (combiner aggr)
                    :emit (let [aggr-emitter (emitter aggr)]
                            (if post
                              #(first (into [] (post [(aggr-emitter %)])))
