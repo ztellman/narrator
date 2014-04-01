@@ -84,7 +84,7 @@
 
 (let [leases (ConcurrentHashMap.)
       task-counter (AtomicLong. 0)
-      
+
       inc-task (fn inc-task [semaphore]
                  (if-let [task-id *task-id*]
                    ;; task-id is already defined, update lease counts
@@ -100,11 +100,11 @@
                    (do
                      (acquire semaphore)
                      (.getAndIncrement task-counter))))
-      
+
       dec-task (fn dec-task [task-id semaphore]
                  (if-let [^AtomicLong cnt (.get leases task-id)]
 
-                   ;; if we're back to zero, 
+                   ;; if we're back to zero,
                    (when (zero? (.decrementAndGet cnt))
                      (.remove leases task-id)
                      (release semaphore))
@@ -162,10 +162,10 @@
     (AtomicLong. 0)))
 
 (defn buffered-aggregator
-  [& {:keys [operator capacity semaphore]
+  [& {:keys [operator capacity semaphore execution-affinity]
       :or {capacity 1024
            semaphore (semaphore)}}]
-  (let [hash c/*execution-affinity*
+  (let [hash execution-affinity
         ^Semaphore semaphore semaphore
         acc-ref (atom (accumulator capacity))
         flush (fn flush [acc sync?]
@@ -183,7 +183,7 @@
       (process-all! [this msgs]
         (doseq [msg msgs]
           (c/process! this msg)))
-      
+
       IBufferedAggregator
       (flush-operator [_]
         (with-exclusive-lock semaphore
@@ -208,7 +208,7 @@
   [generator]
   (c/stream-aggregator-generator
     :ordered? false
-    :create (fn []
+    :create (fn [options]
               (let [m (ConcurrentHashMap.)]
                 (c/stream-aggregator
                   :reset (fn []
@@ -217,11 +217,9 @@
                   :process #(let [id (.getId (Thread/currentThread))]
                               (if-let [op (.get m id)]
                                 (c/process-all! op %)
-                                (let [op (c/create generator)]
+                                (let [op (c/create generator options)]
                                   (.putIfAbsent m id op)
                                   (c/process-all! op %))))
                   :deref #(let [combiner (c/combiner generator)
                                 emitter (c/emitter generator)]
                             (->> m vals (map deref) combiner emitter)))))))
-
-

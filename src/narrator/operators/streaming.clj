@@ -53,7 +53,7 @@
                    (catch IndexOutOfBoundsException _
                      {})))
          :combine #(reduce digest-union %)
-         :create (fn []
+         :create (fn [options]
                    (let [digest (atom (QDigest. compression-factor))]
                      (stream-aggregator
                        :process (fn [ns]
@@ -93,7 +93,7 @@
                   (if (= 1 (count s))
                     (first s)
                     (.merge ^HyperLogLogPlus (first s) (into-array (rest s)))))
-       :create (fn []
+       :create (fn [options]
                  (let [hll (atom (HyperLogLogPlus.
                                    (hll-precision error)
                                    (hll-precision (/ error 2))))]
@@ -132,7 +132,7 @@
           cardinality 1e6}}]
      (stream-processor-generator
        :ordered? true
-       :create (fn []
+       :create (fn [options]
                  (let [bloom (atom (BloomFilter. (int cardinality) (double error)))]
                    (stream-processor
                      :reset #(when clear-on-reset?

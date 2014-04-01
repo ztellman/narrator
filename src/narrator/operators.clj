@@ -4,6 +4,7 @@
     [potemkin]
     [narrator core])
   (:require
+    [clojure.edn :as edn]
     [clojure.set :as set]
     [clojure.core.reducers :as r]
     [narrator.operators
@@ -24,7 +25,7 @@
   (stream-aggregator-generator
     :combine #(apply + %)
     :ordered? false
-    :create (fn []
+    :create (fn [options]
               (let [cnt (AtomicLong. 0)]
                 (stream-aggregator
                   :process #(.addAndGet cnt (count %))
@@ -41,7 +42,7 @@
      (stream-aggregator-generator
        :combine #(apply + %)
        :ordered? false
-       :create (fn []
+       :create (fn [options]
                  (let [cnt (AtomicLong. 0)]
                    (stream-aggregator
                      :process #(.addAndGet cnt (reduce + %))
@@ -58,7 +59,7 @@
      (stream-processor-generator
        :ordered? true
        :combine #(apply + %)
-       :create (fn []
+       :create (fn [options]
                  (let [ref (AtomicReference. nil)]
                    (stream-processor
                      :reducer (r/map
@@ -78,7 +79,7 @@
      :or {clear-on-reset? false}}]
      (stream-processor-generator
        :ordered? false
-       :create (fn []
+       :create (fn [options]
                  (let [ref (AtomicReference. ::none)]
                    (stream-processor
                      :reducer (r/filter
@@ -93,7 +94,7 @@
   (stream-aggregator-generator
     :ordered? false
     :combine last
-    :create (fn []
+    :create (fn [options]
               (let [ref (atom nil)]
                 (stream-aggregator
                   :process (fn [msgs]
@@ -130,13 +131,14 @@
      :or {clear-on-reset? true}
      :as options}
     ops]
-     (let [generator (compile-operators ops false)
+     (let [options-thunk (promise)
+           generator' (compile-operators ops nil)
            de-nil #(if (nil? %) ::nil %)
            re-nil #(if (identical? ::nil %) nil %)]
        (stream-aggregator-generator
          :descriptor (list 'group-by facet options ops)
-         :ordered? (ordered? generator)
-         :combine (when-let [combiner (combiner generator)]
+         :ordered? (ordered? generator')
+         :combine (when-let [combiner (combiner generator')]
                     (fn [ms]
                       (let [ks (->> ms (mapcat keys) distinct)]
                         (zipmap
@@ -150,21 +152,32 @@
                             ks)))))
          :emit #(zipmap
                   (keys %)
-                  (map (emitter generator) (vals %)))
-         :create (fn []
+                  (map (emitter generator') (vals %)))
+         :create (fn [options]
                    (let [m (ConcurrentHashMap.)
-                         context (capture-context)]
+                         generator (compile-operators ops options)
+                         exemplar (delay (create generator options))]
                      (stream-aggregator
+                       :serialize (fn [m]
+                                    (let [f (serializer @exemplar)]
+                                      (pr-str
+                                        (zipmap (keys m)
+                                          (map f (vals m))))))
+                       :deserialize (fn [s]
+                                      (let [m (edn/read-string s)
+                                            f (deserializer @exemplar)]
+                                        (zipmap (keys m)
+                                          (map f (vals m)))))
                        :process (fn [msgs]
                                   (doseq [msg msgs]
                                     (let [k (de-nil (facet msg))]
                                       (if-let [op (.get m k)]
                                         (process! op msg)
-                                        (with-bindings context
-                                          (binding [*execution-affinity* (when ordered? (hash k))]
-                                            (let [op (create generator)
-                                                  op (or (.putIfAbsent m k op) op)]
-                                              (process! op msg))))))))
+                                        (let [op (create generator
+                                                   (assoc options
+                                                     :execution-affinity (when ordered? (hash k))))
+                                              op (or (.putIfAbsent m k op) op)]
+                                          (process! op msg))))))
                        :flush #(doseq [x (vals m)]
                                  (flush-operator x))
                        :deref #(zipmap
@@ -179,16 +192,15 @@
   "Passes the stream back through the top-level stream operator, allowing for analysis of
    nested data-structures."
   []
-  (let [combiner (promise)]
+  (let [combiner-thunk (promise)]
     (stream-aggregator-generator
       :ordered? false ;; we can assume this, and it doesn't change anything if we're wrong
-      :combine (fn [s] (@combiner s))
-      :create (fn []
-                (let [context (capture-context)
-                      op (delay
-                           (let [op (with-bindings context
-                                      (create @*top-level-generator*))]
-                             (deliver combiner @*top-level-generator*)
+      :combine (fn [s] (@combiner-thunk s))
+      :create (fn [{:keys [top-level-generator] :as options}]
+                (let [op (delay
+                           (let [gen (top-level-generator)
+                                 op (create gen options)]
+                             (deliver combiner-thunk (combiner gen))
                              op))]
                   (stream-aggregator
                     :process (fn [msgs]
@@ -231,21 +243,21 @@
   [interval operator]
   (let [operator (compile-operators operator)
         windowed-values (atom (sorted-map))
-        combine-fn (combiner operator)
-        op (create operator)]
+        combine-fn (combiner operator)]
     (assert combine-fn "Any `moving` operator must be combinable.")
     (stream-aggregator-generator
       :ordered? (ordered? operator)
       :emit (emitter operator)
-      :create (fn []
-                (let [now *now-fn*
+      :create (fn [{:keys [now]
+                    :as options}]
+                (assert now "Moving operators require that :timestamp be defined.")
+                (let [op (create operator options)
                       trimmed-values (fn [m]
                                        (let [t (now)
                                              cutoff (- t interval)]
                                          (->> m
                                            (drop-while #(<= (key %) cutoff))
                                            (into (sorted-map)))))]
-                  (assert *now-fn* "No global clock defined.")
                   (stream-aggregator
                     :process #(process-all! op %)
                     :flush #(flush-operator op)

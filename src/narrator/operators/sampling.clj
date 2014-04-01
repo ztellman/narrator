@@ -38,7 +38,7 @@
                     s
                     (->> s (apply concat) shuffle (take sample-size))))
        :create
-       (fn []
+       (fn [options]
          (let [sample-size (long sample-size)
                samples (AtomicReferenceArray. sample-size)
                counter (AtomicLong. 0)]
@@ -48,10 +48,10 @@
                (doseq [msg msgs]
                  (let [cnt (.incrementAndGet counter)]
                    (if (<= cnt sample-size)
-                     
+
                      ;; we don't have our full sample size, add everything
                      (.set samples (dec cnt) msg)
-                     
+
                      ;; check to see if we should displace an existing sample
                      (let [idx (r/rand-int cnt)]
                        (when (< idx sample-size)
@@ -65,4 +65,3 @@
                    (aset ary i (.get samples i)))
 
                  (seq ary)))))))))
-

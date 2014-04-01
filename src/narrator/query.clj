@@ -18,21 +18,30 @@
     :or {buffer? true
          block-size 1024}}]
   (let [semaphore (ex/semaphore)]
-    (binding [c/*now-fn* now
-              c/*compiled-operator-wrapper* (if buffer?
-                                              (fn [op]
-                                                (ex/buffered-aggregator
-                                                  :semaphore semaphore
-                                                  :operator op
-                                                  :capacity block-size))
-                                              identity)
-              c/*aggregator-generator-wrapper* (fn [gen]
-                                                 (if (and (c/ordered? gen) (c/combiner gen))
-                                                   (ex/thread-local-aggregator gen)
-                                                   gen))]
-      (let [gen (c/compile-operators query-descriptor)]
-        (binding [c/*execution-affinity* (when (c/ordered? gen) (r/rand-int Integer/MAX_VALUE))]
-          (c/create gen))))))
+    (let [options {:now now
+
+                   :compiled-operator-wrapper
+                   (if buffer?
+                     (fn [op]
+                       (ex/buffered-aggregator
+                         :semaphore semaphore
+                         :operator op
+                         :capacity block-size))
+                     identity)
+
+                   :aggregator-generator-wrapper
+                   (fn [gen]
+                     (if (and (c/ordered? gen) (c/combiner gen))
+                       (ex/thread-local-aggregator gen)
+                       gen))}
+
+          gen (c/compile-operators query-descriptor options)]
+
+      (c/create gen
+        (assoc options
+          :execution-affinity
+          (when (c/ordered? gen)
+            (r/rand-int Integer/MAX_VALUE)))))))
 
 ;;;
 
@@ -48,10 +57,14 @@
   [op
    current-time
    start-time
-   {:keys [period timestamp value]
+   {:keys [period
+           timestamp
+           value
+           mode]
     :or {value identity
          timestamp (constantly 0)
-         period Long/MAX_VALUE}
+         period Long/MAX_VALUE
+         mode :full}
     :as options}
    input-seq]
   (lazy-seq
