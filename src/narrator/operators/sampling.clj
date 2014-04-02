@@ -32,7 +32,7 @@
      :or {clear-on-reset? true
           sample-size 1024}}]
      (stream-aggregator-generator
-       :ordered? false
+       :concurrent? true
        :combine (fn [s]
                   (if (empty? (rest s))
                     s

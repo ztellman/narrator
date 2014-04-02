@@ -12,15 +12,15 @@
 
 (definterface+ IBufferedAggregator
   (process! [_ msg])
-  (flush-operator [_]))
+  (flush-operator [_])
+  (deserializer [_])
+  (serializer [_]))
 
 (definterface+ StreamOperatorGenerator
   (aggregator? [_])
   (emitter- [_])
   (combiner [_])
-  (deserializer [_])
-  (serializer [_])
-  (ordered? [_])
+  (concurrent? [_])
   (create [_ options])
   (descriptor [_]))
 
@@ -55,15 +55,13 @@
     (reducer [_] reducer)))
 
 (defn stream-processor-generator
-  [& {:keys [ordered? create descriptor]}]
+  [& {:keys [concurrent? create descriptor]}]
   (assert create)
   (reify StreamOperatorGenerator
     (emitter- [_] identity)
     (combiner [_] nil)
-    (serializer [_] nil)
-    (deserializer [_] nil)
     (aggregator? [_] false)
-    (ordered? [_] ordered?)
+    (concurrent? [_] concurrent?)
     (create [_ options] (create options))
     (descriptor [_] descriptor)))
 
@@ -78,7 +76,9 @@
    `reset` - a no-arg function which resets internal state
    `flush` - a no-arg function which flushes any messages which are currently buffered
    "
-  [& {:keys [reset process flush deref]
+  [& {:keys [reset process flush deref serialize deserialize]
+      :or {serialize identity
+           deserialize identity}
       :as args}]
   (assert (and process deref))
   (reify
@@ -88,6 +88,8 @@
     (process-all! [_ msgs] (process msgs))
 
     IBufferedAggregator
+    (serializer [_] serialize)
+    (deserializer [_] deserializer)
     (process! [_ msg] (process [msg]))
     (flush-operator [_] (when flush (flush)))
 
@@ -95,42 +97,40 @@
     (deref [_] (deref))))
 
 (defn stream-aggregator-generator
-  [& {:keys [ordered? create descriptor combine emit serialize deserialize]
+  [& {:keys [concurrent? create descriptor combine emit serialize deserialize]
       :or {emit identity
            deserialize identity
            serialize identity}}]
   (assert create)
   (reify StreamOperatorGenerator
-    (deserializer [_] deserialize)
-    (serializer [_] serialize)
     (emitter- [_] emit)
     (combiner [_] combine)
     (aggregator? [_] true)
-    (ordered? [_] ordered?)
+    (concurrent? [_] concurrent?)
     (create [_ options] (with-meta (create options) {::emitter emit}))
     (descriptor [_] descriptor)))
 
 (defn reducer-op
-  "Returns an unordered stream operator that applies the reducer `f` over the message stream."
+  "Returns a concurrent stream operator that applies the reducer `f` over the message stream."
   [f]
   (stream-processor-generator
-    :ordered? false
+    :concurrent? true
     :create (constantly
               (stream-processor
                 :reducer f))))
 
 (defn map-op
-  "Returns an unordered stream operator that maps `f` over every message."
+  "Returns a concurrent stream operator that maps `f` over every message."
   [f]
   (reducer-op (r/map f)))
 
 (defn mapcat-op
-  "Returns an unordered stream operator that mapcats `f` over every message."
+  "Returns a concurrent stream operator that mapcats `f` over every message."
   [f]
   (reducer-op (r/mapcat f)))
 
 (defn monoid-aggregator
-  "Returns an unordered stream aggregator that combines messages via the two-arity `combine`
+  "Returns a concurrent stream aggregator that combines messages via the two-arity `combine`
    function, starting with an initial value from the zero-arity `initial`. If the combined
    value needs to be processed before emitting, a custom `emit` function may be defined."
   [& {:keys [initial combine pre-process emit clear-on-reset? serialize deserialize]
@@ -141,7 +141,7 @@
   (stream-aggregator-generator
     :serialize serialize
     :deserialize deserialize
-    :ordered? false
+    :concurrent? false
     :combine combine
     :emit emit
     :create (fn [{:keys [serialize deserialize]}]
@@ -230,10 +230,8 @@
                             {:top-level-generator #(deref generator)
                              :top-level? false})
                  options (merge options options')
-                 ordered? (or
-                            (some ordered? pre)
-                            (and (ordered? aggr) ;; assumes that we can do thread-local aggregation
-                              (not (combiner aggr))))
+                 concurrent? (and (every? concurrent? pre)
+                               (concurrent? aggr))
                  pre (map #(create-stream-processor % options) pre)
                  post (map #(create-stream-processor % options) post)
                  ops (concat pre post)
@@ -243,7 +241,7 @@
                (with-meta
                  (stream-aggregator-generator
                    :descriptor op-descriptor
-                   :ordered? ordered?
+                   :concurrent? concurrent?
                    :combine (combiner aggr)
                    :emit (let [aggr-emitter (emitter aggr)]
                            (if post
@@ -255,14 +253,16 @@
                                    aggr (create aggr-generator options)
                                    ops (conj ops aggr)
                                    process-fn (if pre
-                                                (if ordered?
-                                                  #(process-all! aggr (into [] (pre %)))
-                                                  #(process-all! aggr (r/foldcat (pre %))))
+                                                (if concurrent?
+                                                  #(process-all! aggr (r/foldcat (pre %)))
+                                                  #(process-all! aggr (into [] (pre %))))
                                                 #(process-all! aggr %))
                                    flush-ops (filter #(instance? IBufferedAggregator %) ops)]
                                (compiled-operator-wrapper
                                  (stream-aggregator
-                                   :ordered? ordered?
+                                   :serialize (serializer aggr)
+                                   :deserialize (deserializer aggr)
+                                   :concurrent? concurrent?
                                    :reset #(doseq [r ops] (reset-operator! r))
                                    :flush #(doseq [r flush-ops] (flush-operator r))
                                    :deref #(deref aggr)
@@ -284,7 +284,7 @@
   "Yields a list of all messages seen since it has been reset."
   []
   (stream-aggregator-generator
-    :ordered? true
+    :concurrent? true
     :combine #(apply concat %)
     :create (fn [{:keys [serialize deserialize]
                   :or {serialize pr-str
@@ -302,11 +302,10 @@
   [name->ops]
   (let [ks (keys name->ops)
         options-thunk (promise)
-        generators' (map #(compile-operators % nil) (vals name->ops))
-        ordered? (boolean (some ordered? generators'))]
+        generators' (map #(compile-operators % nil) (vals name->ops))]
     (stream-aggregator-generator
       :descriptor name->ops
-      :ordered? ordered?
+      :concurrent? (every? concurrent? generators')
       :combine (let [cs (map combiner generators')]
                  (when (every? (complement nil?) cs)
                    (fn [xs]

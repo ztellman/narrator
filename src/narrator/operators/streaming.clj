@@ -2,6 +2,8 @@
   (:use
     [narrator.core])
   (:require
+    [byte-transforms :as bt]
+    [byte-streams :as bs]
     [primitive-math :as p]
     [clojure.core.reducers :as r]
     [narrator.utils
@@ -10,7 +12,10 @@
     [com.clearspring.analytics.stream.membership
      BloomFilter]
     [com.clearspring.analytics.stream.cardinality
-     HyperLogLogPlus]
+     HyperLogLogPlus
+     HyperLogLogPlus$Builder]
+    [com.clearspring.analytics.stream.frequency
+     CountMinSketch]
     [com.clearspring.analytics.stream.quantile
      QDigest]))
 
@@ -44,8 +49,9 @@
           clear-on-reset? true}}]
      (let [scaling-factor (Math/pow 10 precision)]
        (stream-aggregator-generator
-         :ordered? true
+         :concurrent? false
          :emit (fn [^QDigest digest]
+                 (prn 'emit (class digest) (.printStackTrace (Throwable.)))
                  (try
                    (zipmap
                      quantiles
@@ -56,6 +62,18 @@
          :create (fn [options]
                    (let [digest (atom (QDigest. compression-factor))]
                      (stream-aggregator
+                       :serialize (fn [digest]
+                                    (-> digest
+                                      QDigest/serialize
+                                      (bt/compress :bzip2)
+                                      (bt/encode :base64)
+                                      bs/to-string))
+                       :deserialize (fn [x]
+                                      (-> x
+                                        (bt/decode :base64)
+                                        (bt/decompress :bzip2)
+                                        bs/to-byte-array
+                                        QDigest/deserialize))
                        :process (fn [ns]
                                   (let [^QDigest digest @digest]
                                     (doseq [n ns]
@@ -86,18 +104,28 @@
      :or {clear-on-reset? true
           error 0.01}}]
      (stream-aggregator-generator
-       :ordered? true
+       :concurrent? false
        :emit (fn [^HyperLogLogPlus hll]
                (.cardinality hll))
        :combine (fn [s]
                   (if (= 1 (count s))
                     (first s)
-                    (.merge ^HyperLogLogPlus (first s) (into-array (rest s)))))
+                    (.merge (HyperLogLogPlus. 0.01) (into-array s))))
        :create (fn [options]
                  (let [hll (atom (HyperLogLogPlus.
                                    (hll-precision error)
                                    (hll-precision (/ error 2))))]
                    (stream-aggregator
+                     :serialize (fn [^HyperLogLogPlus hll]
+                                  (-> hll
+                                    .getBytes
+                                    (bt/encode :base64)
+                                    bs/to-string))
+                     :deserialize (fn [x]
+                                    (-> x
+                                      (bt/decode :base64)
+                                      bs/to-byte-array
+                                      HyperLogLogPlus$Builder/build))
                      :process (fn [msgs]
                                 (doseq [x msgs]
                                   (.offer ^HyperLogLogPlus @hll
@@ -111,6 +139,58 @@
                                 (reset! hll (HyperLogLogPlus.
                                               (hll-precision error)
                                               (hll-precision (/ error 2))))))))))))
+
+(defn-operator quasi-frequency-by
+  "Returns a function which, given a string or keyword returned by `(facet msg)`, returns the
+   approximate number of times that value was seen in the stream.
+
+   If `clear-on-reset?` is true, the frequency counts will be zeroed out at the end of each period."
+  ([facet]
+     (quasi-frequency-by facet nil))
+  ([facet
+    {:keys [clear-on-reset? epsilon confidence]
+     :or {clear-on-reset? true
+          epsilon 0.005
+          confidence 0.99}}]
+     (stream-aggregator-generator
+       :concurrent? false
+       :emit (fn [^CountMinSketch cms]
+               (fn [s]
+                 (.estimateCount cms (name s))))
+       :combine (fn [s]
+                  (if (= 1 (count s))
+                    (first s)
+                    (CountMinSketch/merge (into-array s))))
+       :create (fn [options]
+                 (let [cms (atom (CountMinSketch.
+                                   (double epsilon)
+                                   (double confidence)
+                                   (p/int (System/nanoTime))))]
+                   (stream-aggregator
+                     :serialize (fn [cms]
+                                  (-> cms
+                                    CountMinSketch/serialize
+                                    (bt/encode :base64)
+                                    bs/to-string))
+                     :deserialize (fn [x]
+                                    (-> x
+                                      (bt/decode :base64)
+                                      bs/to-byte-array
+                                      CountMinSketch/deserialize))
+                     :process (fn [msgs]
+                                (let [facet->count (->> msgs (map facet) frequencies)
+                                      ^CountMinSketch cms @cms]
+                                  (doseq [[k v] facet->count]
+                                    (.add cms ^String (name k) (long v)))))
+                     :deref (fn []
+                              @cms)
+                     :reset (fn []
+                              (when clear-on-reset?
+                                (reset! cms
+                                  (CountMinSketch.
+                                    (double epsilon)
+                                    (double confidence)
+                                    (p/int (System/nanoTime))))))))))))
 
 (defn-operator quasi-distinct-by
   "Filters out duplicate messages, based on the value returned by `(facet msg)`, which must
@@ -131,7 +211,7 @@
           error 0.01
           cardinality 1e6}}]
      (stream-processor-generator
-       :ordered? true
+       :concurrent? false
        :create (fn [options]
                  (let [bloom (atom (BloomFilter. (int cardinality) (double error)))]
                    (stream-processor

@@ -31,7 +31,7 @@
 
                    :aggregator-generator-wrapper
                    (fn [gen]
-                     (if (and (c/ordered? gen) (c/combiner gen))
+                     (if (and (not (c/concurrent? gen)) (c/combiner gen))
                        (ex/thread-local-aggregator gen)
                        gen))}
 
@@ -40,18 +40,17 @@
       (c/create gen
         (assoc options
           :execution-affinity
-          (when (c/ordered? gen)
+          (when-not (c/concurrent? gen)
             (r/rand-int Integer/MAX_VALUE)))))))
 
 ;;;
 
-(defn sample-seq-fn
-  [s]
-  (when-not (empty? s)
-    (let [s' (loop [s s]
-               (when-not (empty? s)
-                 (recur (rest s))))]
-      (sample-seq-fn (rest s')))))
+(defn- deref-fn [mode op serialize]
+  (apply comp
+    serialize
+    (case mode
+      :full [c/deref']
+      :partial [(c/serializer op) deref])))
 
 (defn- query-seq-
   [op
@@ -60,15 +59,18 @@
    {:keys [period
            timestamp
            value
-           mode]
+           mode
+           serialize]
     :or {value identity
          timestamp (constantly 0)
          period Long/MAX_VALUE
-         mode :full}
+         mode :full
+         serialize identity}
     :as options}
    input-seq]
   (lazy-seq
-    (let [end (long (+ start-time period))
+    (let [deref' (deref-fn mode op serialize)
+          end (long (+ start-time period))
           s' (loop [s input-seq]
                (when-not (empty? s)
 
@@ -109,7 +111,7 @@
       (reset! current-time end)
       (cons
         {:timestamp end
-         :value (let [x (c/deref' op)]
+         :value (let [x (deref' op)]
                   (c/reset-operator! op)
                   x)}
         (when-not (empty? s')

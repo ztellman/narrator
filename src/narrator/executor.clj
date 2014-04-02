@@ -185,6 +185,8 @@
           (c/process! this msg)))
 
       IBufferedAggregator
+      (serializer [_] (c/serializer operator))
+      (deserializer [_] (c/deserializer operator))
       (flush-operator [_]
         (with-exclusive-lock semaphore
           (flush @acc-ref true)
@@ -207,10 +209,14 @@
 (defn thread-local-aggregator
   [generator]
   (c/stream-aggregator-generator
-    :ordered? false
+    :concurrent? true
+    :emit (c/emitter generator)
     :create (fn [options]
-              (let [m (ConcurrentHashMap.)]
+              (let [m (ConcurrentHashMap.)
+                    op (c/create generator options)]
                 (c/stream-aggregator
+                  :serialize (c/serializer op)
+                  :deserialize (c/deserializer op)
                   :reset (fn []
                            (doseq [op (vals m)]
                              (c/reset-operator! op)))
@@ -220,6 +226,5 @@
                                 (let [op (c/create generator options)]
                                   (.putIfAbsent m id op)
                                   (c/process-all! op %))))
-                  :deref #(let [combiner (c/combiner generator)
-                                emitter (c/emitter generator)]
-                            (->> m vals (map deref) combiner emitter)))))))
+                  :deref #(let [combiner (c/combiner generator)]
+                            (->> m vals (map deref) combiner)))))))

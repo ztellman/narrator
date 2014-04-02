@@ -24,7 +24,7 @@
   []
   (stream-aggregator-generator
     :combine #(apply + %)
-    :ordered? false
+    :concurrent? true
     :create (fn [options]
               (let [cnt (AtomicLong. 0)]
                 (stream-aggregator
@@ -41,7 +41,7 @@
      :or {clear-on-reset? true}}]
      (stream-aggregator-generator
        :combine #(apply + %)
-       :ordered? false
+       :concurrent? true
        :create (fn [options]
                  (let [cnt (AtomicLong. 0)]
                    (stream-aggregator
@@ -57,7 +57,7 @@
   ([{:keys [clear-on-reset?]
      :or {clear-on-reset? true}}]
      (stream-processor-generator
-       :ordered? true
+       :concurrent? false
        :combine #(apply + %)
        :create (fn [options]
                  (let [ref (AtomicReference. nil)]
@@ -78,7 +78,7 @@
   ([{:keys [clear-on-reset?]
      :or {clear-on-reset? false}}]
      (stream-processor-generator
-       :ordered? false
+       :concurrent? true
        :create (fn [options]
                  (let [ref (AtomicReference. ::none)]
                    (stream-processor
@@ -92,7 +92,7 @@
   "Emits the latest value seen within the period, or within the entire sequence if no period is defined."
   []
   (stream-aggregator-generator
-    :ordered? false
+    :concurrent? true
     :combine last
     :create (fn [options]
               (let [ref (atom nil)]
@@ -137,7 +137,7 @@
            re-nil #(if (identical? ::nil %) nil %)]
        (stream-aggregator-generator
          :descriptor (list 'group-by facet options ops)
-         :ordered? (ordered? generator')
+         :concurrent? (concurrent? generator')
          :combine (when-let [combiner (combiner generator')]
                     (fn [ms]
                       (let [ks (->> ms (mapcat keys) distinct)]
@@ -175,7 +175,7 @@
                                         (process! op msg)
                                         (let [op (create generator
                                                    (assoc options
-                                                     :execution-affinity (when ordered? (hash k))))
+                                                     :execution-affinity (when-not concurrent? (hash k))))
                                               op (or (.putIfAbsent m k op) op)]
                                           (process! op msg))))))
                        :flush #(doseq [x (vals m)]
@@ -194,7 +194,7 @@
   []
   (let [combiner-thunk (promise)]
     (stream-aggregator-generator
-      :ordered? false ;; we can assume this, and it doesn't change anything if we're wrong
+      :concurrent? true ;; we can assume this, and it doesn't change anything if we're wrong
       :combine (fn [s] (@combiner-thunk s))
       :create (fn [{:keys [top-level-generator] :as options}]
                 (let [op (delay
@@ -228,7 +228,8 @@
   [narrator.operators.streaming
    quantiles
    quasi-distinct-by
-   quasi-cardinality])
+   quasi-cardinality
+   quasi-frequency-by])
 
 ;;;
 
@@ -243,11 +244,13 @@
   [interval operator]
   (let [operator (compile-operators operator)
         windowed-values (atom (sorted-map))
-        combine-fn (combiner operator)]
+        combine-fn (combiner operator)
+        emit-fn (emitter operator)]
     (assert combine-fn "Any `moving` operator must be combinable.")
     (stream-aggregator-generator
-      :ordered? (ordered? operator)
-      :emit (emitter operator)
+      :concurrent? (concurrent? operator)
+      :combine #(apply merge-with combine-fn %)
+      :emit #(emit-fn (combine-fn (vals %)))
       :create (fn [{:keys [now]
                     :as options}]
                 (assert now "Moving operators require that :timestamp be defined.")
@@ -259,13 +262,11 @@
                                            (drop-while #(<= (key %) cutoff))
                                            (into (sorted-map)))))]
                   (stream-aggregator
+                    :serialize
                     :process #(process-all! op %)
                     :flush #(flush-operator op)
                     :deref (fn []
                              (swap! windowed-values
                                #(assoc (trimmed-values %) (now) @op))
-                             (->> windowed-values
-                               deref
-                               vals
-                               combine-fn))
+                             @windowed-values)
                     :reset #(reset-operator! op)))))))
