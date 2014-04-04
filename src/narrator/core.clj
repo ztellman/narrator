@@ -89,7 +89,7 @@
 
     IBufferedAggregator
     (serializer [_] serialize)
-    (deserializer [_] deserializer)
+    (deserializer [_] deserialize)
     (process! [_ msg] (process [msg]))
     (flush-operator [_] (when flush (flush)))
 

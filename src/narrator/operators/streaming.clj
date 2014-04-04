@@ -44,14 +44,13 @@
      (quantiles nil))
   ([{:keys [quantiles clear-on-reset? compression-factor precision]
      :or {quantiles [0.5 0.9 0.95 0.99 0.999]
-          compression-factor 1e4
+          compression-factor 1e3
           precision 6
           clear-on-reset? true}}]
      (let [scaling-factor (Math/pow 10 precision)]
        (stream-aggregator-generator
          :concurrent? false
          :emit (fn [^QDigest digest]
-                 (prn 'emit (class digest) (.printStackTrace (Throwable.)))
                  (try
                    (zipmap
                      quantiles
@@ -94,7 +93,7 @@
 (defn-operator quasi-cardinality
   "Gives the approximate cardinality of unique values, which must be strings, keywords, bytes,
    or numbers.  The memory required for tracking this value is O(log log n), with a constant
-   factor controlled by the desired level of error, which defaults to 1%.
+   factor controlled by the desired level of error, which defaults to 0.01, or 1%.
 
    If `clear-on-reset?` is true, the set of tracked values will be emptied, and the cardinality
    will be reset to 0."
@@ -110,7 +109,9 @@
        :combine (fn [s]
                   (if (= 1 (count s))
                     (first s)
-                    (.merge (HyperLogLogPlus. 0.01) (into-array s))))
+                    (.merge
+                      (-> ^HyperLogLogPlus (first s) .getBytes HyperLogLogPlus$Builder/build)
+                      (into-array (rest s)))))
        :create (fn [options]
                  (let [hll (atom (HyperLogLogPlus.
                                    (hll-precision error)
@@ -119,11 +120,13 @@
                      :serialize (fn [^HyperLogLogPlus hll]
                                   (-> hll
                                     .getBytes
+                                    (bt/compress :bzip2)
                                     (bt/encode :base64)
                                     bs/to-string))
                      :deserialize (fn [x]
                                     (-> x
                                       (bt/decode :base64)
+                                      (bt/decompress :bzip2)
                                       bs/to-byte-array
                                       HyperLogLogPlus$Builder/build))
                      :process (fn [msgs]
@@ -170,11 +173,13 @@
                      :serialize (fn [cms]
                                   (-> cms
                                     CountMinSketch/serialize
+                                    (bt/compress :bzip2)
                                     (bt/encode :base64)
                                     bs/to-string))
                      :deserialize (fn [x]
                                     (-> x
                                       (bt/decode :base64)
+                                      (bt/decompress :bzip2)
                                       bs/to-byte-array
                                       CountMinSketch/deserialize))
                      :process (fn [msgs]

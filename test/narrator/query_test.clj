@@ -1,6 +1,6 @@
 (ns narrator.query-test
   (:use
-    [narrator core query]
+    [narrator query]
     [clojure test])
   (:require
     [lamina.core :as l]
@@ -81,6 +81,28 @@
 
 ;;;
 
+(defn separable? [query s]
+  (let [f (combiner query)]
+    (is (= (query-seq query s)
+          (->> s
+            (group-by (fn [_] (rand-int 10)))
+            vals
+            (map #(query-seq query {:mode :partial} %))
+            f)))))
+
+(def separable-queries
+  [n/rate
+   [n/rate inc]
+   n/sum
+   [(n/filter even?) n/sum]
+   [str n/quasi-cardinality]
+   n/quantiles])
+
+(deftest test-partial-queries
+  (doseq [q separable-queries]
+    (separable? q (range 100))))
+;;;
+
 (defn seq->channel [s]
   (let [out (a/chan)]
     (a/thread
@@ -142,7 +164,7 @@
         (map :value)
         first)
       )
-    
+
     1000 n/rate
     1000 [:one n/sum]
     3000 [:one inc inc n/sum]

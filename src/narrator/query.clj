@@ -155,6 +155,20 @@
            options
            s)))))
 
+(defn combiner
+  "Returns a function that combines the output of :partial queries."
+  ([query-descriptor]
+     (combiner query-descriptor nil))
+  ([query-descriptor
+    {:keys [deserialize]
+     :or {deserialize identity}}]
+     (let [gen (c/compile-operators query-descriptor nil)
+           op (c/create gen nil)]
+       (comp
+         (c/emitter gen)
+         (c/combiner gen)
+         (partial map (comp (c/deserializer op) deserialize))))))
+
 ;;;
 
 (defmacro ^:private when-core-async [& body]
@@ -173,8 +187,10 @@
      realtime, emitting query results  periodically without any timestamp.  If `:timestamp` is given, then it will emit
      maps with `:timestamp` and `:value` entries whenever a period elapses in the input stream."
     [query-descriptor
-     {:keys [period timestamp value start-time buffer? block-size]
+     {:keys [period timestamp value start-time buffer? block-size mode serialize]
       :or {value identity
+           mode :full
+           serialize identity
            period Long/MAX_VALUE}
       :as options}
      ch]
@@ -183,7 +199,8 @@
           now #(System/currentTimeMillis)
           period (long period)
           current-time (atom (when-not timestamp (now)))
-          op (create-operator query-descriptor (assoc options :now #(deref current-time)))]
+          op (create-operator query-descriptor (assoc options :now #(deref current-time)))
+          deref' (deref-fn mode op serialize)]
       (if-not timestamp
 
         ;; process everything in realtime
@@ -200,7 +217,7 @@
                 (do
                   (c/flush-operator op)
                   (reset! current-time (now))
-                  (let [x (c/deref' op)]
+                  (let [x (deref' op)]
                     (c/reset-operator! op)
                     (a/>! out x)
                     (when-not (nil? msg)
@@ -227,7 +244,7 @@
                   (do
                     (c/flush-operator op)
                     (reset! current-time next-flush)
-                    (let [x (c/deref' op)]
+                    (let [x (deref' op)]
                       (c/reset-operator! op)
                       (a/>! out {:timestamp (or next-flush 0) :value x})
                       (when-not (nil? msg)
@@ -256,15 +273,18 @@
      realtime, emitting query results  periodically without any timestamp.  If `:timestamp` is given, then it will emit
      maps with `:timestamp` and `:value` entries whenever a period elapses in the input stream."
     [query-descriptor
-     {:keys [period timestamp value start-time buffer? block-size]
+     {:keys [period timestamp value start-time buffer? block-size mode serialize]
       :or {value identity
-           period Long/MAX_VALUE}
+           period Long/MAX_VALUE
+           mode :full
+           serialize identity}
       :as options}
      ch]
     (let [now #(System/currentTimeMillis)
           period (long period)
           current-time (atom (when-not timestamp (now)))
           op (create-operator query-descriptor (assoc options :now #(deref current-time)))
+          deref' (deref-fn mode op serialize)
           out (l/channel)
           lock (lock/asymmetric-lock)]
       (if-not timestamp
@@ -278,7 +298,7 @@
               (fn []
                 (lock/with-exclusive-lock lock
                   (c/flush-operator op)
-                  (let [x (c/deref' op)]
+                  (let [x (deref' op)]
                     (c/reset-operator! op)
                     x))))
             out)
@@ -293,7 +313,7 @@
             (fn []
               (lock/with-exclusive-lock lock
                 (c/flush-operator op)
-                (let [x (c/deref' op)]
+                (let [x (deref' op)]
                   (l/enqueue out x)
                   (l/close out))))))
 
@@ -309,7 +329,7 @@
                 (when (< @next-flush t)
                   (lock/with-exclusive-lock lock
                     (c/flush-operator op)
-                    (let [x (c/deref' op)]
+                    (let [x (deref' op)]
                       (c/reset-operator! op)
                       (l/enqueue out {:timestamp @next-flush :value x})
                       (reset! current-time @next-flush)
@@ -321,7 +341,7 @@
             (fn []
               (lock/with-exclusive-lock lock
                 (c/flush-operator op)
-                (let [x (c/deref' op)]
+                (let [x (deref' op)]
                   (l/enqueue out {:timestamp @next-flush :value x})
                   (l/close out)))))))
       out)))

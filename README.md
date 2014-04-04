@@ -8,7 +8,7 @@ Narrator is for analyzing and aggregating streams of data.  Stream processing is
 [narrator "0.1.0"]
 ```
 
-Narrator transforms streams of data into periodically sampled values.  This is most easily done using `narrator.query/query-seq`, which takes a query descriptor, an optional map of arguments, and an input sequence.  
+Narrator transforms streams of data into periodically sampled values.  This is most easily done using `narrator.query/query-seq`, which takes a query descriptor, an optional map of arguments, and an input sequence.
 
 In the simplest case, the query descriptor can just be a function, which will be mapped over the input sequence:
 
@@ -37,8 +37,8 @@ nil
 Operators and functions can be composed by placing them in a vector.  Composition is left-to-right:
 
 ```clj
-> (query-seq 
-    [:foo (n/sum)] 
+> (query-seq
+    [:foo (n/sum)]
     (repeat 10 {:foo 1}))
 10
 ```
@@ -70,12 +70,12 @@ Since we haven't defined a period in any of our queries, `query-seq` consumes th
 
 
 ```clj
-> (query-seq 
+> (query-seq
     n/rate
-    {:period 5, :timestamp :foo} 
+    {:period 5, :timestamp :foo}
     (for [n (range 10)]
       {:foo n}))
-({:timestamp 5, :value 5} 
+({:timestamp 5, :value 5}
  {:timestamp 10, :value 5})
 ```
 
@@ -86,8 +86,8 @@ Here we've defined a `:timestamp` function that will give us the time at which e
 We can also do mutliple simultaneous analyses:
 
 ```clj
-> (query-seq 
-    {:sum [:foo n/sum], :rate n/rate} 
+> (query-seq
+    {:sum [:foo n/sum], :rate n/rate}
     (map #(hash-map :foo %) (range 10)))
 {:rate 10, :sum 45}
 ```
@@ -95,7 +95,7 @@ We can also do mutliple simultaneous analyses:
 Maps are valid syntax anywhere within a descriptor, and can even be nested:
 
 ```clj
-> (query-seq 
+> (query-seq
     [:foo {:rate n/rate, :sum n/sum}]
     (map #(hash-map :foo %) (range 10)))
 {:sum 45, :rate 10}
@@ -109,7 +109,7 @@ Maps are valid syntax anywhere within a descriptor, and can even be nested:
 We can also split on arbitrary fields within the data:
 
 ```clj
-> (query-seq 
+> (query-seq
     (n/group-by even? n/rate)
     (range 1000))
 {true 500, false 500}
@@ -132,7 +132,7 @@ The structural query descriptors work great when we know the structure of the da
                      {:name "baz"}]})
 #'x
 > (query-seq
-    (n/group-by :name 
+    (n/group-by :name
       {:rate n/rate
        :children [:children n/concat n/recur]})
     [x])
@@ -222,10 +222,10 @@ Measuring cardinality of a large dataset can also be very memory intensive.  Usi
 A moving-windowed variant of any operator may be defined via `(moving interval operator)`.  This requires that a `:timestamp` be specified, so that the window may be moved.
 
 ```clj
-> (map :value 
-    (query-seq 
-      (n/moving 3 n/rate) 
-      {:timestamp identity :period 1} 
+> (map :value
+    (query-seq
+      (n/moving 3 n/rate)
+      {:timestamp identity :period 1}
       (range 10)))
 (1 2 3 3 3 3 3 3 3 3)
 ```
@@ -239,7 +239,7 @@ A processor can be defined as just a bare function, which will emit the result o
 Many aggregators may be defined as a [monoid](http://en.wikipedia.org/wiki/Monoid), which is simpler than it may seem.  For instance, a sum aggregator may be defined using `narrator.core/monoid-aggregator`:
 
 ```clj
-(monoid-aggregator 
+(monoid-aggregator
   :initial (fn [] 0)
   :combine +)
 ```
@@ -260,7 +260,7 @@ However, sometimes it's too inefficient or simply not possible to define our agg
 ```clj
 (stream-aggregator-generator
   :combine (fn [sums] (reduce + sums))
-  :ordered? false
+  :concurrent? true
   :create (fn []
             (let [cnt (atom 0)]
               (stream-aggregator
@@ -269,11 +269,11 @@ However, sometimes it's too inefficient or simply not possible to define our agg
                 :reset (fn [] (reset! cnt 0))))))
 ```
 
-This is equivalent to the sum example given above. Here, we've defined a **generator** that will create aggregators for our query.  The generator says it is not `:ordered?`, so the stream of messages can be processed in parallel.  It also defines a `:combine` function, which takes a sequence of values from the sub-aggregators and returns a single value.
+This is equivalent to the sum example given above. Here, we've defined a **generator** that will create aggregators for our query.  The generator says it is `:concurrent?`, so the stream of messages can be processed in parallel.  It also defines a `:combine` function, which takes a sequence of values from the sub-aggregators and returns a single value.
 
 The `:create` callback returns an instance of the aggregator via `narrator.core/stream-aggregator`.  This aggregator closes over an atom containing the sum, and defines a `:process` callback that takes a sequence of messages and adds them to the count.  It defines a `:deref` function that returns the current count, and an optional `:reset` function which is called at the beginning of each new query interval.
 
-For each instance of the aggregator, the `:process` callback is guaranteed to only be called on one thread, so non-thread-safe operations and data structures can be used.  Likewise, `:deref` and `:reset` are guaranteed not to be called while messages are being processed, so no mutual exclusion is necessary. 
+For each instance of the aggregator, the `:process` callback is guaranteed to only be called on one thread, so non-thread-safe operations and data structures can be used.  Likewise, `:deref` and `:reset` are guaranteed not to be called while messages are being processed, so no mutual exclusion is necessary.
 
 Given these invariants, very high throughput message processing is possible, with automatic parallelization wherever possible.  The built-in operators in Narrator take full advantage of this.
 
