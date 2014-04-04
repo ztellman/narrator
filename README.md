@@ -202,7 +202,7 @@ The most recent value within a period, or overall, can be determined using `late
 
 ```clj
 > (query-seq n/latest (range 10))
-10
+9
 ```
 
 When trying to remove duplicate values from large datasets, the memory cost can be quite high.  Using Bloom Filters, `quasi-distinct-by` allows approximate duplicate removal using much less memory, with tunable error rates.  The facet used for duplicate checks must be a string or keyword:
