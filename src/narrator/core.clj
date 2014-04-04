@@ -201,7 +201,7 @@
   "Takes a descriptor of stream operations, and returns a function that generates a single
    stream operator that is the composition of all described operators."
   ([op-descriptor]
-     (compile-operators op-descriptor))
+     (compile-operators op-descriptor nil))
   ([op-descriptor
     {:keys [top-level?
             aggregator-generator-wrapper

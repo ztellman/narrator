@@ -260,9 +260,18 @@
                                              cutoff (- t interval)]
                                          (->> m
                                            (drop-while #(<= (key %) cutoff))
-                                           (into (sorted-map)))))]
+                                           (into (sorted-map)))))
+                      serialize (serializer op)
+                      deserialize (deserializer op)]
                   (stream-aggregator
-                    :serialize
+                    :serializer #(into (sorted-map)
+                                   (map vector
+                                     (keys %)
+                                     (map serializer (vals %))))
+                    :deserializer #(into (sorted-map)
+                                     (map vector
+                                       (keys %)
+                                       (map deserializer (vals %))))
                     :process #(process-all! op %)
                     :flush #(flush-operator op)
                     :deref (fn []
