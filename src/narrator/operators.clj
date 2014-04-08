@@ -249,7 +249,7 @@
     (assert combine-fn "Any `moving` operator must be combinable.")
     (stream-aggregator-generator
       :concurrent? (concurrent? operator)
-      :combine #(apply merge-with combine-fn %)
+      :combine #(apply merge-with #(combine-fn %&) %)
       :emit #(emit-fn (combine-fn (vals %)))
       :create (fn [{:keys [now]
                     :as options}]
