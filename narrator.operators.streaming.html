@@ -22,7 +22,7 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-digest-union">digest-union</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-hll-precision">hll-precision</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-quantiles">quantiles</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-quasi-cardinality">quasi-cardinality</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-quasi-distinct-by">quasi-distinct-by</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-digest-union">digest-union</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-hll-precision">hll-precision</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-quantiles">quantiles</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-quasi-cardinality">quasi-cardinality</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-quasi-distinct-by">quasi-distinct-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.streaming.html#var-quasi-frequency-by">quasi-frequency-by</a></li>
         </ul>
       </div>
     </navigation>
@@ -51,7 +51,7 @@
           </div><div class="public">
             <h3><a id="var-quantiles" class="source var-name" href="src/narrator/operators/streaming.clj">quantiles</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[]</div><div class="usage">[{:keys [quantiles clear-on-reset? compression-factor precision], :or {quantiles [0.5 0.9 0.95 0.99 0.999], compression-factor 10000.0, precision 6, clear-on-reset? true}}]</div>
+            <div class="usage">[]</div><div class="usage">[{:keys [quantiles clear-on-reset? compression-factor precision], :or {quantiles [0.5 0.9 0.95 0.99 0.999], compression-factor 1000.0, precision 6, clear-on-reset? true}}]</div>
             
             
             <div class="doc"><p>Gives the statistical distribution of values passed in, which must be numerical.  The values
@@ -77,7 +77,7 @@ include all values seen since the beginning of the stream, set <code>clear-on-re
             
             <div class="doc"><p>Gives the approximate cardinality of unique values, which must be strings, keywords, bytes,
 or numbers.  The memory required for tracking this value is O(log log n), with a constant
-factor controlled by the desired level of error, which defaults to 1%.</p>
+factor controlled by the desired level of error, which defaults to 0.01, or 1%.</p>
 
 <p>If <code>clear-on-reset?</code> is true, the set of tracked values will be emptied, and the cardinality
 will be reset to 0.</p>
@@ -98,6 +98,17 @@ setting the <code>error</code>, which is the proportion of false positives from 
 
 <p>If <code>clear-on-reset?</code> is true, messages will ony be distinct within a given period.  If
 not, they're distinct over the lifetime of the stream.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-quasi-frequency-by" class="source var-name" href="src/narrator/operators/streaming.clj">quasi-frequency-by</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[facet]</div><div class="usage">[facet {:keys [clear-on-reset? epsilon confidence], :or {clear-on-reset? true, epsilon 0.005, confidence 0.99}}]</div>
+            
+            
+            <div class="doc"><p>Returns a function which, given a string or keyword returned by <code>(facet msg)</code>, returns the
+approximate number of times that value was seen in the stream.</p>
+
+<p>If <code>clear-on-reset?</code> is true, the frequency counts will be zeroed out at the end of each period.</p>
 </div>
           </div>
         </div>
