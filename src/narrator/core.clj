@@ -257,7 +257,7 @@
                                                   #(process-all! aggr (r/foldcat (pre %)))
                                                   #(process-all! aggr (into [] (pre %))))
                                                 #(process-all! aggr %))
-                                   flush-ops (filter #(instance? IBufferedAggregator %) ops)]
+                                   flush-ops (filterv #(instance? IBufferedAggregator %) ops)]
                                (compiled-operator-wrapper
                                  (stream-aggregator
                                    :serialize (serializer aggr)
@@ -333,11 +333,17 @@
                     :serialize (fn [m]
                                  (pr-str
                                    (zipmap ks
-                                     (map #(%1 %2) serializers (vals m)))))
+                                     (map
+                                       (fn [f k] (f (get m k)))
+                                       serializers
+                                       ks))))
                     :deserialize (fn [s]
                                    (let [m (edn/read-string s)]
                                      (zipmap ks
-                                       (map #(%1 %2) deserializers (vals m)))))
+                                       (map
+                                         (fn [f k] (f (get m k)))
+                                         deserializers
+                                         ks))))
                     :process (fn [msgs]
                                (doseq [op ops]
                                  (process-all! op msgs)))

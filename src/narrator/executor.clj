@@ -220,11 +220,16 @@
                   :reset (fn []
                            (doseq [op (vals m)]
                              (c/reset-operator! op)))
-                  :process #(let [id (.getId (Thread/currentThread))]
-                              (if-let [op (.get m id)]
-                                (c/process-all! op %)
-                                (let [op (c/create generator options)]
-                                  (.putIfAbsent m id op)
-                                  (c/process-all! op %))))
+                  :process (fn [msgs]
+                             (let [id (.getId (Thread/currentThread))]
+                               (if-let [op (.get m id)]
+                                 (c/process-all! op msgs)
+                                 (let [op (c/create generator options)]
+                                   (.putIfAbsent m id op)
+                                   (c/process-all! op msgs)))))
+                  :flush (fn []
+                           (doseq [op (vals m)]
+                             (c/flush-operator op)))
                   :deref #(let [combiner (c/combiner generator)]
-                            (->> m vals (map deref) combiner)))))))
+                            (when-not (.isEmpty m)
+                              (->> m vals (map deref) combiner))))))))

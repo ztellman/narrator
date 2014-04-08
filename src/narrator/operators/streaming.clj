@@ -51,12 +51,14 @@
        (stream-aggregator-generator
          :concurrent? false
          :emit (fn [^QDigest digest]
-                 (try
-                   (zipmap
-                     quantiles
-                     (map #(p/div (double (.getQuantile digest %)) scaling-factor) quantiles))
-                   (catch IndexOutOfBoundsException _
-                     {})))
+                 (if digest
+                   (try
+                     (zipmap
+                       quantiles
+                       (map #(p/div (double (.getQuantile digest %)) scaling-factor) quantiles))
+                     (catch IndexOutOfBoundsException _
+                       {}))
+                   {}))
          :combine #(reduce digest-union %)
          :create (fn [options]
                    (let [digest (atom (QDigest. compression-factor))]
