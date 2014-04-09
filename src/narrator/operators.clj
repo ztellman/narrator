@@ -133,29 +133,35 @@
     ops]
      (let [options-thunk (promise)
            generator' (compile-operators ops nil)
+           generator-thunk (promise)
            de-nil #(if (nil? %) ::nil %)
            re-nil #(if (identical? ::nil %) nil %)]
        (stream-aggregator-generator
          :descriptor (list 'group-by facet options ops)
          :concurrent? (concurrent? generator')
-         :combine (when-let [combiner (combiner generator')]
+         :combine (when (combiner generator')
                     (fn [ms]
-                      (let [ks (->> ms (mapcat keys) distinct)]
-                        (zipmap
-                          ks
-                          (map
-                            (fn [k]
-                              (->> ms
-                                (map #(get % k ::none))
-                                (remove #(identical? ::none %))
-                                combiner))
-                            ks)))))
-         :emit #(zipmap
-                  (keys %)
-                  (map (emitter generator') (vals %)))
+                      (let [c (combiner @generator-thunk)]
+                        (let [ks (->> ms (mapcat keys) distinct)]
+                          (zipmap
+                            ks
+                            (map
+                              (fn [k]
+                                (->> ms
+                                  (map #(get % k ::none))
+                                  (remove #(identical? ::none %))
+                                  c))
+                              ks))))))
+         :emit (fn [m]
+                 (let [e (emitter @generator-thunk)]
+                   (when-not (empty? m)
+                     (zipmap
+                       (keys m)
+                       (map e (vals m))))))
          :create (fn [options]
                    (let [m (ConcurrentHashMap.)
                          generator (compile-operators ops options)
+                         _ (deliver generator-thunk generator)
                          exemplar (delay (create generator options))]
                      (stream-aggregator
                        :serialize (fn [m]
@@ -192,16 +198,18 @@
   "Passes the stream back through the top-level stream operator, allowing for analysis of
    nested data-structures."
   []
-  (let [combiner-thunk (promise)]
+  (let [gen-thunk (promise)]
     (stream-aggregator-generator
+      :descriptor 'recur
       :concurrent? true ;; we can assume this, and it doesn't change anything if we're wrong
-      :combine (fn [s] (@combiner-thunk s))
-      :create (fn [{:keys [top-level-generator] :as options}]
-                (let [op (delay
-                           (let [gen (top-level-generator)
-                                 op (create gen options)]
-                             (deliver combiner-thunk (combiner gen))
-                             op))]
+      :combine #(if (every? nil? %)
+                  nil
+                  ((combiner @gen-thunk) %))
+      :emit #(when %
+               ((emitter @gen-thunk) %))
+      :create (fn [{:keys [top-level-generator force?] :as options}]
+                (deliver gen-thunk (top-level-generator))
+                (let [op (delay (create (top-level-generator) options))]
                   (stream-aggregator
                     :process (fn [msgs]
                                (when-not (empty? msgs)
@@ -212,6 +220,11 @@
                               @@op)
                     :reset #(when (realized? op)
                               (reset-operator! op))))))))
+
+(defn recur-to
+  "Defines the point all contained `recur` operators will return to."
+  [query-descriptor]
+  (compile-operators query-descriptor {:top-level? true}))
 
 (defn-operator filter
   [predicate]
@@ -241,41 +254,34 @@
 
    The given operator must be combinable, which is automatically true of any composition of
    the built-in operators, and any operator defined via `narrator.core/monoid`."
-  [interval operator]
-  (let [operator (compile-operators operator)
-        windowed-values (atom (sorted-map))
-        combine-fn (combiner operator)
-        emit-fn (emitter operator)]
-    (assert combine-fn "Any `moving` operator must be combinable.")
+  [interval query-descriptor]
+  (let [gen-thunk (promise)]
     (stream-aggregator-generator
-      :concurrent? (concurrent? operator)
-      :combine (fn [s] (apply merge-with #(combine-fn %&) s))
-      :emit #(emit-fn (combine-fn (vals %)))
+      :descriptor (list 'moving interval query-descriptor)
+      :concurrent? (-> query-descriptor (compile-operators nil) concurrent?)
+      :combine #((combiner @gen-thunk) %)
+      :emit #((emitter @gen-thunk) %)
       :create (fn [{:keys [now]
                     :as options}]
                 (assert now "Moving operators require that :timestamp be defined.")
-                (let [op (create operator options)
+                (let [windowed-values (atom (sorted-map))
+                      gen (compile-operators query-descriptor options)
+                      _ (assert (combiner gen) "Any `moving` operator must be combinable.")
+                      _ (deliver gen-thunk gen)
                       trimmed-values (fn [m]
                                        (let [t (now)
                                              cutoff (- t interval)]
                                          (->> m
                                            (drop-while #(<= (key %) cutoff))
                                            (into (sorted-map)))))
-                      serialize (serializer op)
-                      deserialize (deserializer op)]
+                      op (create gen options)]
                   (stream-aggregator
-                    :serializer #(into (sorted-map)
-                                   (map vector
-                                     (keys %)
-                                     (map serializer (vals %))))
-                    :deserializer #(into (sorted-map)
-                                     (map vector
-                                       (keys %)
-                                       (map deserializer (vals %))))
+                    :serialize (serializer op)
+                    :deserialize (deserializer op)
                     :process #(process-all! op %)
                     :flush #(flush-operator op)
                     :deref (fn []
                              (swap! windowed-values
                                #(assoc (trimmed-values %) (now) @op))
-                             @windowed-values)
+                             ((combiner @gen-thunk) (vals @windowed-values)))
                     :reset #(reset-operator! op)))))))

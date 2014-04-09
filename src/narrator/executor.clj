@@ -213,10 +213,14 @@
     :emit (c/emitter generator)
     :create (fn [options]
               (let [m (ConcurrentHashMap.)
-                    op (c/create generator options)]
+                    options' (dissoc options :aggregator-generator-wrapper)
+                    op-thunk (delay (c/create generator options'))]
                 (c/stream-aggregator
-                  :serialize (c/serializer op)
-                  :deserialize (c/deserializer op)
+
+                  ;; TODO: this is necessary because the first instance of an operator
+                  ;; should be actually used.  Should the codecs be at the generator level?
+                  :serialize #((c/serializer @op-thunk) %)
+                  :deserialize #((c/deserializer @op-thunk) %)
                   :reset (fn []
                            (doseq [op (vals m)]
                              (c/reset-operator! op)))
@@ -224,7 +228,7 @@
                              (let [id (.getId (Thread/currentThread))]
                                (if-let [op (.get m id)]
                                  (c/process-all! op msgs)
-                                 (let [op (c/create generator options)]
+                                 (let [op (c/create generator options')]
                                    (.putIfAbsent m id op)
                                    (c/process-all! op msgs)))))
                   :flush (fn []
@@ -232,4 +236,4 @@
                              (c/flush-operator op)))
                   :deref #(let [combiner (c/combiner generator)]
                             (when-not (.isEmpty m)
-                              (->> m vals (map deref) combiner))))))))
+                              (->> m vals (map deref) doall combiner))))))))

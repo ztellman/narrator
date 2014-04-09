@@ -20,6 +20,8 @@
   (let [semaphore (ex/semaphore)]
     (let [options {:now now
 
+                   :top-level? true
+
                    :compiled-operator-wrapper
                    (if buffer?
                      (fn [op]
@@ -149,7 +151,7 @@
                        #(first (map :value %)))]
        (transform
          (query-seq-
-           (create-operator query-descriptor (assoc options :now #(deref current-time)))
+           (create-operator query-descriptor (assoc options :now (when timestamp #(deref current-time))))
            current-time
            start-time
            options

@@ -203,12 +203,8 @@
   ([op-descriptor]
      (compile-operators op-descriptor nil))
   ([op-descriptor
-    {:keys [top-level?
-            aggregator-generator-wrapper
-            compiled-operator-wrapper]
-     :or {compiled-operator-wrapper identity
-          aggregator-generator-wrapper identity
-          top-level? true}
+    {:keys [top-level?]
+     :or {top-level? false}
      :as options}]
      (cond
        (-> op-descriptor meta ::compiled)
@@ -247,10 +243,13 @@
                            (if post
                              #(first (into [] (post [(aggr-emitter %)])))
                              aggr-emitter))
-                   :create (fn [options]
+                   :create (fn [{:keys [aggregator-generator-wrapper
+                                        compiled-operator-wrapper]
+                                 :or {compiled-operator-wrapper identity
+                                      aggregator-generator-wrapper identity}
+                                 :as options}]
                              (let [options (merge options options')
-                                   aggr-generator (aggregator-generator-wrapper aggr)
-                                   aggr (create aggr-generator options)
+                                   aggr (create (aggregator-generator-wrapper aggr) options)
                                    ops (conj ops aggr)
                                    process-fn (if pre
                                                 (if concurrent?
@@ -302,13 +301,16 @@
   [name->ops]
   (let [ks (keys name->ops)
         options-thunk (promise)
-        generators' (map #(compile-operators % nil) (vals name->ops))]
+        generators' (map #(compile-operators % nil) (vals name->ops))
+        generators-thunk (promise)]
     (stream-aggregator-generator
       :descriptor name->ops
       :concurrent? (every? concurrent? generators')
-      :combine (let [cs (map combiner generators')]
-                 (when (every? (complement nil?) cs)
-                   (fn [xs]
+      :combine (when (->> generators'
+                       (map combiner)
+                       (every? (complement nil?)))
+                 (fn [xs]
+                   (let [cs (map combiner @generators-thunk)]
                      (zipmap
                        ks
                        (map
@@ -319,13 +321,14 @@
                              (f)))
                          cs
                          ks)))))
-      :emit (let [emitters (map emitter generators')]
-              (fn [m]
+      :emit (fn [m]
+              (let [emitters (map emitter @generators-thunk)]
                 (zipmap
                   ks
                   (map #(%1 (get m %2)) emitters ks))))
       :create (fn [options]
                 (let [generators (map #(compile-operators % options) (vals name->ops))
+                      _ (deliver generators-thunk generators)
                       ops (map #(create % options) generators)
                       serializers (map serializer ops)
                       deserializers (map deserializer ops)]
