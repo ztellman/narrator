@@ -175,6 +175,7 @@
       (stream-processor
         :reducer (r/map
                    (fn [x]
+                     (reset-operator! op)
                      (process! op x)
                      (flush-operator op)
                      (->> [(deref' op)] combiner-fn emitter-fn)))))
