@@ -22,7 +22,7 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-concat">concat</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-delta">delta</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-filter">filter</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-group-by">group-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-latest">latest</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-mean">mean</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-moving">moving</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quantiles">quantiles</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quasi-cardinality">quasi-cardinality</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quasi-distinct-by">quasi-distinct-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quasi-frequency-by">quasi-frequency-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-rate">rate</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-recur">recur</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-sample">sample</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-sum">sum</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-transitions">transitions</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-concat">concat</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-delta">delta</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-filter">filter</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-group-by">group-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-latest">latest</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-mean">mean</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-moving">moving</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quantiles">quantiles</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quasi-cardinality">quasi-cardinality</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quasi-distinct-by">quasi-distinct-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-quasi-frequency-by">quasi-frequency-by</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-rate">rate</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-recur">recur</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-recur-to">recur-to</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-sample">sample</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-sum">sum</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.operators.html#var-transitions">transitions</a></li>
         </ul>
       </div>
     </navigation>
@@ -85,7 +85,7 @@ the beginning of every period.  Emits <code>NaN</code> if no messages are receiv
           </div><div class="public">
             <h3><a id="var-moving" class="source var-name" href="src/narrator/operators.clj">moving</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[interval operator]</div>
+            <div class="usage">[interval query-descriptor]</div>
             
             
             <div class="doc"><p>Emulates a moving window over the operator, of width <code>interval</code>.  Since smooth windowing
@@ -174,6 +174,14 @@ approximate number of times that value was seen in the stream.</p>
             
             <div class="doc"><p>Passes the stream back through the top-level stream operator, allowing for analysis of
 nested data-structures.</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-recur-to" class="source var-name" href="src/narrator/operators.clj">recur-to</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[query-descriptor]</div>
+            
+            
+            <div class="doc"><p>Defines the point all contained <code>recur</code> operators will return to.</p>
 </div>
           </div><div class="public">
             <h3><a id="var-sample" class="source var-name" href="src/narrator/operators/sampling.clj">sample</a></h3>
