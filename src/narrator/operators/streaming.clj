@@ -2,6 +2,7 @@
   (:use
     [narrator.core])
   (:require
+    [clojure.tools.logging :as log]
     [byte-transforms :as bt]
     [byte-streams :as bs]
     [primitive-math :as p]
@@ -78,7 +79,10 @@
                        :process (fn [ns]
                                   (let [^QDigest digest @digest]
                                     (doseq [n ns]
-                                      (.offer digest (long (p/* scaling-factor (double n)))))))
+                                      (try
+                                        (.offer digest (long (p/* scaling-factor (double n))))
+                                        (catch Throwable e
+                                          (log/error e "error in q-digest"))))))
                        :deref (fn []
                                 @digest)
                        :reset (fn []

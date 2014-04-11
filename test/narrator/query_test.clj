@@ -15,16 +15,16 @@
   (are [expected descriptor]
     (= expected (query-seq descriptor data))
 
-    1000 n/rate
-    1000 [:one n/sum]
-    3000 [:one inc inc n/sum]
-    3002 [:one inc inc n/sum inc inc]))
+    1000.0 n/rate
+    1000.0 [:one n/sum]
+    3000.0 [:one inc inc n/sum]
+    3002.0 [:one inc inc n/sum inc inc]))
 
 (deftest test-periodic-basic-parsing
   (are [expected descriptor period]
     (= expected (map :value (query-seq descriptor {:timestamp :n, :period period} data)))
 
-    (range 1e3) [:n n/sum] 1))
+    (map double (range 1e3)) [:n n/sum] 1))
 
 (deftest test-group-by
   (is (= {true 50000, false 50000}
@@ -136,10 +136,10 @@
         first)
       )
 
-    1000 n/rate
-    1000 [:one n/sum]
-    3000 [:one inc inc n/sum]
-    3002 [:one inc inc n/sum inc inc]))
+    1000   n/rate
+    1000.0 [:one n/sum]
+    3000.0 [:one inc inc n/sum]
+    3002.0 [:one inc inc n/sum inc inc]))
 
 ;;;
 
@@ -165,10 +165,10 @@
         first)
       )
 
-    1000 n/rate
-    1000 [:one n/sum]
-    3000 [:one inc inc n/sum]
-    3002 [:one inc inc n/sum inc inc]))
+    1000   n/rate
+    1000.0 [:one n/sum]
+    3000.0 [:one inc inc n/sum]
+    3002.0 [:one inc inc n/sum inc inc]))
 
 
 ;;;
@@ -193,7 +193,12 @@
       (range 1e6))))
 
 (deftest ^:stress stress-query-seq
-  (apply =
+  (dotimes [_ 1e4]
+    (is (= {true {true 50000} false {false 50000}}
+          (query-seq
+            (n/group-by even? (n/group-by even? n/rate))
+            (range 1e5)))))
+  #_(apply =
     (repeatedly
       1e5
       (fn []

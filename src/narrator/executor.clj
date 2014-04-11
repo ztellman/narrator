@@ -89,17 +89,17 @@
                  (if-let [task-id *task-id*]
                    ;; task-id is already defined, update lease counts
                    (do
-                     (if-not (.contains leases task-id)
+                     (if-let [cnt (.get leases task-id)]
+                       (.incrementAndGet ^AtomicLong cnt)
                        (let [cnt (AtomicLong. 1)
                              cnt (or (.putIfAbsent leases task-id cnt) cnt)]
-                         (.incrementAndGet ^AtomicLong cnt))
-                       (.incrementAndGet ^AtomicLong (.get leases task-id)))
+                         (.incrementAndGet ^AtomicLong cnt)))
                      task-id)
 
                    ;; no task-id, acquire semaphore and create task-id
                    (do
                      (acquire semaphore)
-                     (.getAndIncrement task-counter))))
+                     (.incrementAndGet task-counter))))
 
       dec-task (fn dec-task [task-id semaphore]
                  (if-let [^AtomicLong cnt (.get leases task-id)]
@@ -110,7 +110,7 @@
                      (release semaphore))
 
                    ;; we never created a lease in the first place
-                   (release semaphore)))]
+                   (do (prn '!) (release semaphore))))]
   (defn submit
     [f ^Semaphore semaphore hash]
     (let [task-id (inc-task semaphore)
@@ -126,7 +126,7 @@
         (.submit ^ExecutorService
           (aget ^objects executors (Math/abs (p/rem hash num-cores)))
           r)
-        (catch Exception e
+        (catch Throwable e
           (dec-task task-id semaphore))))))
 
 ;;;

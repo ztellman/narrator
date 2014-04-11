@@ -7,6 +7,7 @@
     [clojure.edn :as edn]
     [clojure.set :as set]
     [clojure.core.reducers :as r]
+    [primitive-math :as p]
     [narrator.operators
      sampling
      streaming])
@@ -45,9 +46,18 @@
        :create (fn [options]
                  (let [cnt (AtomicLong. 0)]
                    (stream-aggregator
-                     :process #(.addAndGet cnt (reduce + %))
-                     :deref #(.get cnt)
-                     :reset #(when clear-on-reset? (.set cnt 0))))))))
+                     :process (fn [msgs]
+                                (let [sum (double (reduce + msgs))]
+                                  (loop []
+                                    (let [current (.get cnt)
+                                          val     (Double/longBitsToDouble current)]
+                                      (when-not (.compareAndSet cnt current
+                                                  (Double/doubleToRawLongBits
+                                                    (p/+ val sum)))
+                                        (recur))))))
+                     :deref #(Double/longBitsToDouble (.get cnt))
+                     :reset #(when clear-on-reset?
+                               (.set cnt (Double/doubleToRawLongBits 0)))))))))
 
 (defn-operator delta
   "Emits the difference between the current and previous values.  The first value will
@@ -254,6 +264,8 @@
   [interval query-descriptor]
   (let [gen-thunk (promise)]
     (stream-aggregator-generator
+      :serialize (serializer @gen-thunk)
+      :deserialize (deserializer @gen-thunk)
       :descriptor (list 'moving interval query-descriptor)
       :concurrent? (-> query-descriptor (compile-operators nil) concurrent?)
       :combine #((combiner @gen-thunk) %)
@@ -273,8 +285,6 @@
                                            (into (sorted-map)))))
                       op (create gen options)]
                   (stream-aggregator
-                    :serialize (serializer op)
-                    :deserialize (deserializer op)
                     :process #(process-all! op %)
                     :flush #(flush-operator op)
                     :deref (fn []
