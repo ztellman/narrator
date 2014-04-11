@@ -185,8 +185,6 @@
           (c/process! this msg)))
 
       IBufferedAggregator
-      (serializer [_] (c/serializer operator))
-      (deserializer [_] (c/deserializer operator))
       (flush-operator [_]
         (with-exclusive-lock semaphore
           (flush @acc-ref true)
@@ -211,16 +209,12 @@
   (c/stream-aggregator-generator
     :concurrent? true
     :emit (c/emitter generator)
+    :serialize (c/serializer generator)
+    :deserialize (c/deserializer generator)
     :create (fn [options]
               (let [m (ConcurrentHashMap.)
-                    options' (dissoc options :aggregator-generator-wrapper)
-                    op-thunk (delay (c/create generator options'))]
+                    options' (dissoc options :aggregator-generator-wrapper)]
                 (c/stream-aggregator
-
-                  ;; TODO: this is necessary because the first instance of an operator
-                  ;; should be actually used.  Should the codecs be at the generator level?
-                  :serialize #((c/serializer @op-thunk) %)
-                  :deserialize #((c/deserializer @op-thunk) %)
                   :reset (fn []
                            (doseq [op (vals m)]
                              (c/reset-operator! op)))

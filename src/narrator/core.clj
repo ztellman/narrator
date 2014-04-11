@@ -12,11 +12,11 @@
 
 (definterface+ IBufferedAggregator
   (process! [_ msg])
-  (flush-operator [_])
-  (deserializer [_])
-  (serializer [_]))
+  (flush-operator [_]))
 
 (definterface+ StreamOperatorGenerator
+  (deserializer [_])
+  (serializer [_])
   (aggregator? [_])
   (emitter- [_])
   (combiner [_])
@@ -76,10 +76,7 @@
    `reset` - a no-arg function which resets internal state
    `flush` - a no-arg function which flushes any messages which are currently buffered
    "
-  [& {:keys [reset process flush deref serialize deserialize]
-      :or {serialize identity
-           deserialize identity}
-      :as args}]
+  [& {:keys [reset process flush deref]}]
   (assert (and process deref))
   (reify
     StreamOperator
@@ -88,8 +85,6 @@
     (process-all! [_ msgs] (process msgs))
 
     IBufferedAggregator
-    (serializer [_] serialize)
-    (deserializer [_] deserialize)
     (process! [_ msg] (process [msg]))
     (flush-operator [_] (when flush (flush)))
 
@@ -103,6 +98,8 @@
            serialize identity}}]
   (assert create)
   (reify StreamOperatorGenerator
+    (serializer [_] serialize)
+    (deserializer [_] deserialize)
     (emitter- [_] emit)
     (combiner [_] combine)
     (aggregator? [_] true)
@@ -147,8 +144,6 @@
     :create (fn [{:keys [serialize deserialize]}]
               (let [val (atom (initial))]
                 (stream-aggregator
-                  :serialize serialize
-                  :deserialize deserialize
                   :reset (when clear-on-reset? #(reset! val (initial)))
                   :deref #(deref val)
                   :process (fn [msgs]
@@ -238,6 +233,8 @@
                (with-meta
                  (stream-aggregator-generator
                    :descriptor op-descriptor
+                   :serialize (serializer aggr)
+                   :deserialize (deserializer aggr)
                    :concurrent? concurrent?
                    :combine (combiner aggr)
                    :emit (let [aggr-emitter (emitter aggr)]
@@ -260,8 +257,6 @@
                                    flush-ops (filterv #(instance? IBufferedAggregator %) ops)]
                                (compiled-operator-wrapper
                                  (stream-aggregator
-                                   :serialize (serializer aggr)
-                                   :deserialize (deserializer aggr)
                                    :concurrent? concurrent?
                                    :reset #(doseq [r ops] (reset-operator! r))
                                    :flush #(doseq [r flush-ops] (flush-operator r))
@@ -286,13 +281,9 @@
   (stream-aggregator-generator
     :concurrent? true
     :combine #(apply concat %)
-    :create (fn [{:keys [serialize deserialize]
-                  :or {serialize pr-str
-                       deserialize edn/read-string}}]
+    :create (fn [options]
               (let [acc (atom (ArrayList.))]
                 (stream-aggregator
-                  :serialize serialize
-                  :deserialize deserialize
                   :process #(locking acc (.addAll ^ArrayList @acc %))
                   :deref #(deref acc)
                   :reset #(clojure.core/reset! acc (ArrayList.)))))))
@@ -303,10 +294,24 @@
   (let [ks (keys name->ops)
         options-thunk (promise)
         generators' (map #(compile-operators % nil) (vals name->ops))
+        serializers (map serializer generators')
+        deserializers (map deserializer generators')
         generators-thunk (promise)]
     (stream-aggregator-generator
       :descriptor name->ops
       :concurrent? (every? concurrent? generators')
+      :serialize (fn [m]
+                   (zipmap ks
+                     (map
+                       (fn [f k] (f (get m k)))
+                       serializers
+                       ks)))
+      :deserialize (fn [m]
+                     (zipmap ks
+                       (map
+                         (fn [f k] (f (get m k)))
+                         deserializers
+                         ks)))
       :combine (when (->> generators'
                        (map combiner)
                        (every? (complement nil?)))
@@ -330,24 +335,8 @@
       :create (fn [options]
                 (let [generators (map #(compile-operators % options) (vals name->ops))
                       _ (deliver generators-thunk generators)
-                      ops (map #(create % options) generators)
-                      serializers (map serializer ops)
-                      deserializers (map deserializer ops)]
+                      ops (map #(create % options) generators)]
                   (stream-aggregator
-                    :serialize (fn [m]
-                                 (pr-str
-                                   (zipmap ks
-                                     (map
-                                       (fn [f k] (f (get m k)))
-                                       serializers
-                                       ks))))
-                    :deserialize (fn [s]
-                                   (let [m (edn/read-string s)]
-                                     (zipmap ks
-                                       (map
-                                         (fn [f k] (f (get m k)))
-                                         deserializers
-                                         ks))))
                     :process (fn [msgs]
                                (doseq [op ops]
                                  (process-all! op msgs)))

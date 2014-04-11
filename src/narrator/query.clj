@@ -12,7 +12,7 @@
 
 ;;;
 
-(defn- create-operator
+(defn- create-gen+operator
   [query-descriptor
    {:keys [now buffer? block-size]
     :or {buffer? true
@@ -39,23 +39,25 @@
 
           gen (c/compile-operators query-descriptor options)]
 
-      (c/create gen
-        (assoc options
-          :execution-affinity
-          (when-not (c/concurrent? gen)
-            (r/rand-int Integer/MAX_VALUE)))))))
+      [gen
+       (c/create gen
+         (assoc options
+           :execution-affinity
+           (when-not (c/concurrent? gen)
+             (r/rand-int Integer/MAX_VALUE))))])))
 
 ;;;
 
-(defn- deref-fn [mode op serialize]
+(defn- deref-fn [mode generator serialize]
   (apply comp
     serialize
     (case mode
       :full [c/deref']
-      :partial [(c/serializer op) deref])))
+      :partial [(c/serializer generator) deref])))
 
 (defn- query-seq-
-  [op
+  [generator
+   op
    current-time
    start-time
    {:keys [period
@@ -71,7 +73,7 @@
     :as options}
    input-seq]
   (lazy-seq
-    (let [deref' (deref-fn mode op serialize)
+    (let [deref' (deref-fn mode generator serialize)
           end (long (+ start-time period))
           s' (loop [s input-seq]
                (when-not (empty? s)
@@ -117,7 +119,7 @@
                   (c/reset-operator! op)
                   x)}
         (when-not (empty? s')
-          (query-seq- op current-time end options s'))))))
+          (query-seq- generator op current-time end options s'))))))
 
 (defn query-seq
   "Applies the `query-descriptor` to the sequence of messages.  If `:timestamp` and `:period` are specified, then returns
@@ -148,10 +150,14 @@
            current-time (atom start-time)
            transform (if (and period timestamp)
                        identity
-                       #(first (map :value %)))]
+                       #(first (map :value %)))
+           [gen operator] (create-gen+operator
+                            query-descriptor
+                            (assoc options :now (when timestamp #(deref current-time))))]
        (transform
          (query-seq-
-           (create-operator query-descriptor (assoc options :now (when timestamp #(deref current-time))))
+           gen
+           operator
            current-time
            start-time
            options
@@ -164,12 +170,11 @@
   ([query-descriptor
     {:keys [deserialize]
      :or {deserialize identity}}]
-     (let [gen (c/compile-operators query-descriptor nil)
-           op (c/create gen nil)]
+     (let [gen (c/compile-operators query-descriptor nil)]
        (comp
          (c/emitter gen)
          (c/combiner gen)
-         (partial map (comp (c/deserializer op) deserialize))))))
+         (partial map (comp (c/deserializer gen) deserialize))))))
 
 ;;;
 
@@ -201,8 +206,10 @@
           now #(System/currentTimeMillis)
           period (long period)
           current-time (atom (when-not timestamp (now)))
-          op (create-operator query-descriptor (assoc options :now #(deref current-time)))
-          deref' (deref-fn mode op serialize)]
+          [gen op] (create-gen+operator
+                     query-descriptor
+                     (assoc options :now #(deref current-time)))
+          deref' (deref-fn mode gen serialize)]
       (if-not timestamp
 
         ;; process everything in realtime
@@ -285,8 +292,10 @@
     (let [now #(System/currentTimeMillis)
           period (long period)
           current-time (atom (when-not timestamp (now)))
-          op (create-operator query-descriptor (assoc options :now #(deref current-time)))
-          deref' (deref-fn mode op serialize)
+          [gen op] (create-gen+operator
+                     query-descriptor
+                     (assoc options :now #(deref current-time)))
+          deref' (deref-fn mode gen serialize)
           out (l/channel)
           lock (lock/asymmetric-lock)]
       (if-not timestamp

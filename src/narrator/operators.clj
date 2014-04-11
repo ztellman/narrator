@@ -133,10 +133,18 @@
     ops]
      (let [options-thunk (promise)
            generator' (compile-operators ops nil)
+           serialize (serializer generator')
+           deserialize (deserializer generator')
            generator-thunk (promise)
            de-nil #(if (nil? %) ::nil %)
            re-nil #(if (identical? ::nil %) nil %)]
        (stream-aggregator-generator
+         :serialize (fn [m]
+                      (zipmap (keys m)
+                        (map serialize (vals m))))
+         :deserialize (fn [m]
+                        (zipmap (keys m)
+                          (map deserialize (vals m))))
          :descriptor (list 'group-by facet options ops)
          :concurrent? (concurrent? generator')
          :combine (when (combiner generator')
@@ -161,19 +169,8 @@
          :create (fn [options]
                    (let [m (ConcurrentHashMap.)
                          generator (compile-operators ops options)
-                         _ (deliver generator-thunk generator)
-                         exemplar (delay (create generator options))]
+                         _ (deliver generator-thunk generator)]
                      (stream-aggregator
-                       :serialize (fn [m]
-                                    (let [f (serializer @exemplar)]
-                                      (pr-str
-                                        (zipmap (keys m)
-                                          (map f (vals m))))))
-                       :deserialize (fn [s]
-                                      (let [m (edn/read-string s)
-                                            f (deserializer @exemplar)]
-                                        (zipmap (keys m)
-                                          (map f (vals m)))))
                        :process (fn [msgs]
                                   (doseq [msg msgs]
                                     (let [k (de-nil (facet msg))]

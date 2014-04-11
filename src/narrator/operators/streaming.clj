@@ -50,6 +50,18 @@
      (let [scaling-factor (Math/pow 10 precision)]
        (stream-aggregator-generator
          :concurrent? false
+         :serialize (fn [digest]
+                      (-> digest
+                        QDigest/serialize
+                        (bt/compress :bzip2)
+                        (bt/encode :base64)
+                        bs/to-string))
+         :deserialize (fn [x]
+                        (-> x
+                          (bt/decode :base64)
+                          (bt/decompress :bzip2)
+                          bs/to-byte-array
+                          QDigest/deserialize))
          :emit (fn [^QDigest digest]
                  (if digest
                    (try
@@ -63,18 +75,6 @@
          :create (fn [options]
                    (let [digest (atom (QDigest. compression-factor))]
                      (stream-aggregator
-                       :serialize (fn [digest]
-                                    (-> digest
-                                      QDigest/serialize
-                                      (bt/compress :bzip2)
-                                      (bt/encode :base64)
-                                      bs/to-string))
-                       :deserialize (fn [x]
-                                      (-> x
-                                        (bt/decode :base64)
-                                        (bt/decompress :bzip2)
-                                        bs/to-byte-array
-                                        QDigest/deserialize))
                        :process (fn [ns]
                                   (let [^QDigest digest @digest]
                                     (doseq [n ns]
@@ -106,6 +106,18 @@
           error 0.01}}]
      (stream-aggregator-generator
        :concurrent? false
+       :serialize (fn [^HyperLogLogPlus hll]
+                    (-> hll
+                      .getBytes
+                      (bt/compress :bzip2)
+                      (bt/encode :base64)
+                      bs/to-string))
+       :deserialize (fn [x]
+                      (-> x
+                        (bt/decode :base64)
+                        (bt/decompress :bzip2)
+                        bs/to-byte-array
+                        HyperLogLogPlus$Builder/build))
        :emit (fn [^HyperLogLogPlus hll]
                (.cardinality hll))
        :combine (fn [s]
@@ -119,18 +131,6 @@
                                    (hll-precision error)
                                    (hll-precision (/ error 2))))]
                    (stream-aggregator
-                     :serialize (fn [^HyperLogLogPlus hll]
-                                  (-> hll
-                                    .getBytes
-                                    (bt/compress :bzip2)
-                                    (bt/encode :base64)
-                                    bs/to-string))
-                     :deserialize (fn [x]
-                                    (-> x
-                                      (bt/decode :base64)
-                                      (bt/decompress :bzip2)
-                                      bs/to-byte-array
-                                      HyperLogLogPlus$Builder/build))
                      :process (fn [msgs]
                                 (doseq [x msgs]
                                   (.offer ^HyperLogLogPlus @hll
@@ -159,6 +159,18 @@
           confidence 0.99}}]
      (stream-aggregator-generator
        :concurrent? false
+       :serialize (fn [cms]
+                    (-> cms
+                      CountMinSketch/serialize
+                      (bt/compress :bzip2)
+                      (bt/encode :base64)
+                      bs/to-string))
+       :deserialize (fn [x]
+                      (-> x
+                        (bt/decode :base64)
+                        (bt/decompress :bzip2)
+                        bs/to-byte-array
+                        CountMinSketch/deserialize))
        :emit (fn [^CountMinSketch cms]
                (fn [s]
                  (.estimateCount cms (name s))))
@@ -172,18 +184,6 @@
                                    (double confidence)
                                    (p/int (System/nanoTime))))]
                    (stream-aggregator
-                     :serialize (fn [cms]
-                                  (-> cms
-                                    CountMinSketch/serialize
-                                    (bt/compress :bzip2)
-                                    (bt/encode :base64)
-                                    bs/to-string))
-                     :deserialize (fn [x]
-                                    (-> x
-                                      (bt/decode :base64)
-                                      (bt/decompress :bzip2)
-                                      bs/to-byte-array
-                                      CountMinSketch/deserialize))
                      :process (fn [msgs]
                                 (let [facet->count (->> msgs (map facet) frequencies)
                                       ^CountMinSketch cms @cms]
