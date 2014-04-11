@@ -83,7 +83,9 @@
 
 (defn separable? [query s]
   (let [f (combiner query)]
-    (is (= (query-seq query s)
+    (is (=
+          (query-seq query s)
+          (query-seq (n/moving 1 query) {:timestamp (constantly 0)} s)
           (->> s
             (group-by (fn [_] (rand-int 10)))
             vals

@@ -262,21 +262,20 @@
    The given operator must be combinable, which is automatically true of any composition of
    the built-in operators, and any operator defined via `narrator.core/monoid`."
   [interval query-descriptor]
-  (let [gen-thunk (promise)]
+  (let [generator' (compile-operators query-descriptor nil)]
+    (assert (combiner generator') "Any `moving` operator must be combinable.")
     (stream-aggregator-generator
-      :serialize (serializer @gen-thunk)
-      :deserialize (deserializer @gen-thunk)
+      :serialize (serializer generator')
+      :deserialize (deserializer generator')
       :descriptor (list 'moving interval query-descriptor)
       :concurrent? (-> query-descriptor (compile-operators nil) concurrent?)
-      :combine #((combiner @gen-thunk) %)
-      :emit #((emitter @gen-thunk) %)
+      :combine #((combiner generator') %)
+      :emit #((emitter generator') %)
       :create (fn [{:keys [now]
                     :as options}]
                 (assert now "Moving operators require that :timestamp be defined.")
                 (let [windowed-values (atom (sorted-map))
                       gen (compile-operators query-descriptor options)
-                      _ (assert (combiner gen) "Any `moving` operator must be combinable.")
-                      _ (deliver gen-thunk gen)
                       trimmed-values (fn [m]
                                        (let [t (now)
                                              cutoff (- t interval)]
@@ -290,5 +289,5 @@
                     :deref (fn []
                              (swap! windowed-values
                                #(assoc (trimmed-values %) (now) @op))
-                             ((combiner @gen-thunk) (vals @windowed-values)))
+                             ((combiner gen) (vals @windowed-values)))
                     :reset #(reset-operator! op)))))))
