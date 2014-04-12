@@ -110,7 +110,7 @@
                      (release semaphore))
 
                    ;; we never created a lease in the first place
-                   (do (prn '!) (release semaphore))))]
+                   (release semaphore)))]
   (defn submit
     [f ^Semaphore semaphore hash]
     (let [task-id (inc-task semaphore)

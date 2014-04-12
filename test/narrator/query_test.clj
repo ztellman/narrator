@@ -15,7 +15,7 @@
   (are [expected descriptor]
     (= expected (query-seq descriptor data))
 
-    1000.0 n/rate
+    1000   n/rate
     1000.0 [:one n/sum]
     3000.0 [:one inc inc n/sum]
     3002.0 [:one inc inc n/sum inc inc]))

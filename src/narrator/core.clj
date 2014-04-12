@@ -222,13 +222,7 @@
                             {:top-level-generator #(deref generator)
                              :top-level? false})
                  options (merge options options')
-                 concurrent? (and (every? concurrent? pre)
-                               (concurrent? aggr))
-                 pre (map #(create-stream-processor % options) pre)
-                 post (map #(create-stream-processor % options) post)
-                 ops (concat pre post)
-                 pre (combine-processors pre)
-                 post (combine-processors post)]
+                 concurrent? (and (every? concurrent? pre) (concurrent? aggr))]
              (deliver generator
                (with-meta
                  (stream-aggregator-generator
@@ -239,14 +233,23 @@
                    :combine (combiner aggr)
                    :emit (let [aggr-emitter (emitter aggr)]
                            (if post
-                             #(first (into [] (post [(aggr-emitter %)])))
+                             (fn [x]
+                               (let [post (->> post
+                                            (map #(create-stream-processor % options))
+                                            combine-processors)]
+                                 (first (into [] (post [(aggr-emitter x)])))))
                              aggr-emitter))
                    :create (fn [{:keys [aggregator-generator-wrapper
                                         compiled-operator-wrapper]
                                  :or {compiled-operator-wrapper identity
                                       aggregator-generator-wrapper identity}
                                  :as options}]
-                             (let [options (merge options options')
+                             (let [pre (map #(create-stream-processor % options) pre)
+                                   post (map #(create-stream-processor % options) post)
+                                   ops (concat pre post)
+                                   pre (combine-processors pre)
+                                   post (combine-processors post)
+                                   options (merge options options')
                                    aggr (create (aggregator-generator-wrapper aggr) options)
                                    ops (conj ops aggr)
                                    process-fn (if pre
