@@ -22,7 +22,7 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var--%3EAccumulator">-&gt;Accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-accumulator">accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-acquire">acquire</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-acquire-all">acquire-all</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-add%21">add!</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-buffered-aggregator">buffered-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-release">release</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-semaphore">semaphore</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-submit">submit</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-thread-local-aggregator">thread-local-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-with-exclusive-lock">with-exclusive-lock</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var--%3EAccumulator">-&gt;Accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-accumulator">accumulator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-acquire">acquire</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-acquire-all">acquire-all</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-add%21">add!</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-buffered-aggregator">buffered-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-flush%21">flush!</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-release">release</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-semaphore">semaphore</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-submit">submit</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-thread-local-aggregator">thread-local-aggregator</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.executor.html#var-with-exclusive-lock">with-exclusive-lock</a></li>
         </ul>
       </div>
     </navigation>
@@ -35,7 +35,7 @@
           <div class="public">
             <h3><a id="var--%3EAccumulator" class="source var-name" href="src/narrator/executor.clj">-&gt;Accumulator</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[ary capacity idx]</div>
+            <div class="usage">[ary token capacity idx lock]</div>
             
             
             <div class="doc"><p>Positional factory function for class narrator.executor.Accumulator.</p>
@@ -75,7 +75,15 @@
           </div><div class="public">
             <h3><a id="var-buffered-aggregator" class="source var-name" href="src/narrator/executor.clj">buffered-aggregator</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[&amp; {:keys [operator capacity semaphore execution-affinity], :or {capacity 1024, semaphore (semaphore)}}]</div>
+            <div class="usage">[{:keys [operator capacity semaphore execution-affinity], :or {capacity 1024, semaphore (semaphore)}}]</div>
+            
+            
+            <div class="doc">
+</div>
+          </div><div class="public">
+            <h3><a id="var-flush%21" class="source var-name" href="src/narrator/executor.clj">flush!</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[_ token]</div>
             
             
             <div class="doc">
@@ -99,7 +107,7 @@
           </div><div class="public">
             <h3><a id="var-submit" class="source var-name" href="src/narrator/executor.clj">submit</a></h3>
             <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[f semaphore hash]</div>
+            <div class="usage">[f semaphore affinity]</div>
             
             
             <div class="doc">
