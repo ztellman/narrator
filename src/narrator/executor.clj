@@ -2,6 +2,8 @@
   (:use
     [potemkin])
   (:require
+    [clojure.tools.logging :as log]
+    [narrator.utils.locks :as l]
     [primitive-math :as p]
     [narrator.utils.rand :as r]
     [narrator.core :as c])
@@ -16,8 +18,7 @@
      Semaphore
      Executors
      ThreadFactory
-     ExecutorService
-     ArrayBlockingQueue]
+     ExecutorService]
     [java.util.concurrent.atomic
      AtomicLong]))
 
@@ -56,7 +57,7 @@
            (release semaphore# max-permits))))))
 
 (defn ^Semaphore semaphore []
-  (Semaphore. max-permits false))
+  (Semaphore. max-permits true))
 
 ;;;
 
@@ -112,7 +113,7 @@
                    ;; we never created a lease in the first place
                    (release semaphore)))]
   (defn submit
-    [f ^Semaphore semaphore hash]
+    [f ^Semaphore semaphore affinity]
     (let [task-id (inc-task semaphore)
 
           ^Runnable r
@@ -120,11 +121,13 @@
             (binding [*task-id* task-id]
               (try
                 (f)
+                (catch Throwable e
+                  (log/error e "Error in Narrator query"))
                 (finally
                   (dec-task task-id semaphore)))))]
       (try
         (.submit ^ExecutorService
-          (aget ^objects executors (Math/abs (p/rem hash num-cores)))
+          (aget ^objects executors (Math/abs (p/rem affinity num-cores)))
           r)
         (catch Throwable e
           (dec-task task-id semaphore))))))
@@ -132,50 +135,59 @@
 ;;;
 
 (definterface+ IAccumulator
-  (^boolean add! [_ x]))
+  (^boolean add! [_ x])
+  (flush! [_ token]))
 
 (deftype+ Accumulator
-  [^objects ary
+  [^objects ^:volatile-mutable ary
+   ^:volatile-mutable token
    ^long capacity
-   ^AtomicLong idx]
+   ^AtomicLong idx
+   lock]
   IAccumulator
   (add! [_ x]
-    (let [idx (.getAndIncrement idx)]
-      (if (< idx capacity)
-        (do
-          (aset ary idx x)
-          true)
-        false)))
-  clojure.lang.Seqable
-  (seq [_]
-    (let [idx (.get idx)]
-      (if (<= capacity idx)
-        (seq ary)
-        (let [ary' (object-array idx)]
-          (System/arraycopy ary 0 ary' 0 idx)
-          (seq ary'))))))
+    (l/with-lock lock
+      (let [idx (.getAndIncrement idx)]
+        (if (< idx capacity)
+          (do
+            (aset ary idx x)
+            nil)
+          token))))
+  (flush! [_ t]
+    (l/with-exclusive-lock lock
+      (when (or (nil? t) (identical? t token))
+        (let [s (if (<= capacity idx)
+                  (seq ary)
+                  (let [ary' (object-array idx)]
+                    (System/arraycopy ary 0 ary' 0 idx)
+                    (seq ary')))]
+          (.set idx 0)
+          (set! ary (object-array capacity))
+          (set! token (Object.))
+          s)))))
 
 (defn accumulator [^long capacity]
   (Accumulator.
     (object-array capacity)
+    (Object.)
     capacity
-    (AtomicLong. 0)))
+    (AtomicLong. 0)
+    (l/asymmetric-lock)))
 
 (defn buffered-aggregator
-  [& {:keys [operator capacity semaphore execution-affinity]
-      :or {capacity 1024
-           semaphore (semaphore)}}]
-  (let [hash execution-affinity
-        ^Semaphore semaphore semaphore
-        acc-ref (atom (accumulator capacity))
-        flush (fn flush [acc sync?]
-                (when (compare-and-set! acc-ref acc (accumulator capacity))
+  [{:keys [operator capacity semaphore execution-affinity]
+    :or {capacity 1024
+         semaphore (semaphore)}}]
+  (let [^Semaphore semaphore semaphore
+        acc (accumulator capacity)
+        flush (fn flush [acc token sync?]
+                (when-let [s (flush! acc token)]
                   (if sync?
-                    (c/process-all! operator (seq acc))
+                    (c/process-all! operator s)
                     (submit
-                      #(c/process-all! operator (seq acc))
+                      #(c/process-all! operator s)
                       semaphore
-                      (or hash (r/rand-int num-cores))))))]
+                      (or execution-affinity (r/rand-int num-cores))))))]
     (reify
       StreamOperator
       (reset-operator! [_]
@@ -187,16 +199,15 @@
       IBufferedAggregator
       (flush-operator [_]
         (with-exclusive-lock semaphore
-          (flush @acc-ref true)
+          (flush acc nil true)
           (c/flush-operator operator)))
       (process! [this msg]
         (loop []
-          (let [acc @acc-ref]
-            (if (add! acc msg)
-              nil
-              (do
-                (flush acc *has-exclusive-lock*)
-                (recur))))))
+          (if-let [token (add! acc msg)]
+            (do
+              (flush acc token *has-exclusive-lock*)
+              (recur))
+            nil)))
 
       clojure.lang.IDeref
       (deref [_]

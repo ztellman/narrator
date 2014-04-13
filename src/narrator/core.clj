@@ -241,7 +241,7 @@
                              aggr-emitter))
                    :create (fn [{:keys [aggregator-generator-wrapper
                                         compiled-operator-wrapper]
-                                 :or {compiled-operator-wrapper identity
+                                 :or {compiled-operator-wrapper (fn [op _] op)
                                       aggregator-generator-wrapper identity}
                                  :as options}]
                              (let [pre (map #(create-stream-processor % options) pre)
@@ -264,7 +264,8 @@
                                    :reset #(doseq [r ops] (reset-operator! r))
                                    :flush #(doseq [r flush-ops] (flush-operator r))
                                    :deref #(deref aggr)
-                                   :process process-fn)))))
+                                   :process process-fn)
+                                 options))))
                  {::compiled true}))
              @generator))))))
 
@@ -338,7 +339,12 @@
       :create (fn [options]
                 (let [generators (map #(compile-operators % options) (vals name->ops))
                       _ (deliver generators-thunk generators)
-                      ops (map #(create % options) generators)]
+                      ops (map
+                            #(create %
+                               (assoc options
+                                 :execution-affinity (when-not (concurrent? %)
+                                                       (rand/rand-int))))
+                            generators)]
                   (stream-aggregator
                     :process (fn [msgs]
                                (doseq [op ops]

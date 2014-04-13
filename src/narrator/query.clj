@@ -24,12 +24,14 @@
 
                    :compiled-operator-wrapper
                    (if buffer?
-                     (fn [op]
+                     (fn [op {:keys [execution-affinity]}]
                        (ex/buffered-aggregator
-                         :semaphore semaphore
-                         :operator op
-                         :capacity block-size))
-                     identity)
+                         {:semaphore semaphore
+                          :operator op
+                          :capacity block-size
+                          :execution-affinity execution-affinity}))
+                     (fn [op _]
+                       op))
 
                    :aggregator-generator-wrapper
                    (fn [gen]
@@ -42,9 +44,8 @@
       [gen
        (c/create gen
          (assoc options
-           :execution-affinity
-           (when-not (c/concurrent? gen)
-             (r/rand-int Integer/MAX_VALUE))))])))
+           :execution-affinity (when-not (c/concurrent? gen)
+                                 (r/rand-int Integer/MAX_VALUE))))])))
 
 ;;;
 

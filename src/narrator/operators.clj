@@ -7,6 +7,7 @@
     [clojure.edn :as edn]
     [clojure.set :as set]
     [clojure.core.reducers :as r]
+    [narrator.utils.rand :as rand]
     [primitive-math :as p]
     [narrator.operators
      sampling
@@ -141,8 +142,7 @@
      :or {clear-on-reset? true}
      :as options}
     ops]
-     (let [options-thunk (promise)
-           generator' (compile-operators ops nil)
+     (let [generator' (compile-operators ops nil)
            serialize (serializer generator')
            deserialize (deserializer generator')
            generator-thunk (promise)
@@ -179,7 +179,8 @@
          :create (fn [options]
                    (let [m (ConcurrentHashMap.)
                          generator (compile-operators ops options)
-                         _ (deliver generator-thunk generator)]
+                         _ (deliver generator-thunk generator)
+                         concurrent? (concurrent? generator)]
                      (stream-aggregator
                        :process (fn [msgs]
                                   (doseq [msg msgs]
@@ -188,7 +189,8 @@
                                         (process! op msg)
                                         (let [op (create generator
                                                    (assoc options
-                                                     :execution-affinity (when-not concurrent? (hash k))))
+                                                     :execution-affinity (when-not concurrent?
+                                                                           (rand/rand-int))))
                                               op (or (.putIfAbsent m k op) op)]
                                           (process! op msg))))))
                        :flush #(doseq [x (vals m)]

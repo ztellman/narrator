@@ -4,10 +4,12 @@
     [narrator.utils
      ThreadLocalRandom]))
 
-(definline rand-int
+(defn ^long rand-int
   "An optimized random integer generator."
-  [n]
-  `(.nextLong (ThreadLocalRandom/current) ~n))
+  (^long []
+     (.nextLong (ThreadLocalRandom/current) (long Integer/MAX_VALUE)))
+  (^long [n]
+     (.nextLong (ThreadLocalRandom/current) (long n))))
 
 (defn rand
   "An optimized random floating-point generator."

@@ -194,15 +194,18 @@
       (n/group-by #(rem % 4) n/rate)
       (range 1e6))))
 
+;;;
+
+(defn consistent? [n f]
+  (let [x (f)]
+    (every?
+      (fn [_] (= x (f)))
+      (range n))))
+
 (deftest ^:stress stress-query-seq
-  (dotimes [_ 1e4]
-    (is (= {true {true 50000} false {false 50000}}
-          (query-seq
-            (n/group-by even? (n/group-by even? n/rate))
-            (range 1e5)))))
-  #_(apply =
-    (repeatedly
-      1e5
+  (is
+    (consistent?
+      1e3
       (fn []
         (query-seq
           (n/group-by #(rem % 4)
