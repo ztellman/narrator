@@ -135,7 +135,7 @@
 ;;;
 
 (definterface+ IAccumulator
-  (^boolean add! [_ x])
+  (add! [_ x])
   (flush! [_ token]))
 
 (deftype+ Accumulator
