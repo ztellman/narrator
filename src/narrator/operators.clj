@@ -142,45 +142,38 @@
      :or {clear-on-reset? true}
      :as options}
     ops]
-     (let [generator' (compile-operators ops nil)
-           serialize (serializer generator')
-           deserialize (deserializer generator')
-           generator-thunk (promise)
+     (let [generator (compile-operators ops)
            de-nil #(if (nil? %) ::nil %)
            re-nil #(if (identical? ::nil %) nil %)]
        (stream-aggregator-generator
+         :recur-to #(recur-to! generator %)
          :serialize (fn [m]
                       (zipmap (keys m)
-                        (map serialize (vals m))))
+                        (map (serializer generator) (vals m))))
          :deserialize (fn [m]
                         (zipmap (keys m)
-                          (map deserialize (vals m))))
+                          (map (deserializer generator) (vals m))))
          :descriptor (list 'group-by facet options ops)
-         :concurrent? (concurrent? generator')
-         :combine (when (combiner generator')
+         :concurrent? (concurrent? generator)
+         :combine (when-let [combiner (combiner generator)]
                     (fn [ms]
-                      (let [c (combiner @generator-thunk)]
-                        (let [ks (->> ms (mapcat keys) distinct)]
-                          (zipmap
-                            ks
-                            (map
-                              (fn [k]
-                                (->> ms
-                                  (map #(get % k ::none))
-                                  (remove #(identical? ::none %))
-                                  c))
-                              ks))))))
+                      (let [ks (->> ms (mapcat keys) distinct)]
+                        (zipmap
+                          ks
+                          (map
+                            (fn [k]
+                              (->> ms
+                                (map #(get % k ::none))
+                                (remove #(identical? ::none %))
+                                combiner))
+                            ks)))))
          :emit (fn [m]
-                 (let [e (emitter @generator-thunk)]
-                   (when-not (empty? m)
-                     (zipmap
-                       (keys m)
-                       (map e (vals m))))))
+                 (when-not (empty? m)
+                   (zipmap
+                     (keys m)
+                     (map (emitter generator) (vals m)))))
          :create (fn [options]
-                   (let [m (ConcurrentHashMap.)
-                         generator (compile-operators ops options)
-                         _ (deliver generator-thunk generator)
-                         concurrent? (concurrent? generator)]
+                   (let [m (ConcurrentHashMap.)]
                      (stream-aggregator
                        :process (fn [msgs]
                                   (doseq [msg msgs]
@@ -188,9 +181,9 @@
                                       (if-let [op (.get m k)]
                                         (process! op msg)
                                         (let [op (create generator
-                                                   (assoc options
-                                                     :execution-affinity (when-not concurrent?
-                                                                           (rand/rand-int))))
+                                                   (assoc options :execution-affinity
+                                                     (when-not (concurrent? generator)
+                                                       (rand/rand-int))))
                                               op (or (.putIfAbsent m k op) op)]
                                           (process! op msg))))))
                        :flush #(doseq [x (vals m)]
@@ -207,18 +200,22 @@
   "Passes the stream back through the top-level stream operator, allowing for analysis of
    nested data-structures."
   []
-  (let [gen-thunk (promise)]
+  (let [gen (atom nil)]
     (stream-aggregator-generator
+      :recur-to #(reset! gen %)
       :descriptor 'recur
       :concurrent? true ;; we can assume this, and it doesn't change anything if we're wrong
       :combine #(if (every? nil? %)
                   nil
-                  ((combiner @gen-thunk) %))
+                  ((combiner @gen) %))
       :emit #(when %
-               ((emitter @gen-thunk) %))
-      :create (fn [{:keys [top-level-generator force?] :as options}]
-                (deliver gen-thunk (top-level-generator))
-                (let [op (delay (create (top-level-generator) options))]
+               ((emitter @gen) %))
+      :serialize #((serializer @gen) %)
+      :deserialize #((deserializer @gen) %)
+      :create (fn [options]
+                (when-not @gen
+                  (throw (IllegalArgumentException. "'recur' requires matching 'recur-to'")))
+                (let [op (delay (create @gen options))]
                   (stream-aggregator
                     :process (fn [msgs]
                                (when-not (empty? msgs)
@@ -233,7 +230,15 @@
 (defn recur-to
   "Defines the point all contained `recur` operators will return to."
   [query-descriptor]
-  (compile-operators query-descriptor {:top-level? true}))
+  (let [generator (compile-operators query-descriptor)]
+    (recur-to! generator generator)
+    (stream-aggregator-generator
+      :recur-to (fn [_])
+      :serialize (serializer generator)
+      :deserialize (deserializer generator)
+      :combine (combiner generator)
+      :emit (emitter generator)
+      :create #(create generator %))))
 
 (defn-operator filter
   [predicate]
@@ -264,32 +269,32 @@
    The given operator must be combinable, which is automatically true of any composition of
    the built-in operators, and any operator defined via `narrator.core/monoid`."
   [interval query-descriptor]
-  (let [generator' (compile-operators query-descriptor nil)]
-    (assert (combiner generator') "Any `moving` operator must be combinable.")
+  (let [generator (compile-operators query-descriptor)]
+    (assert (combiner generator) "Any `moving` operator must be combinable.")
     (stream-aggregator-generator
-      :serialize (serializer generator')
-      :deserialize (deserializer generator')
+      :recur-to #(recur-to! generator %)
+      :serialize (serializer generator)
+      :deserialize (deserializer generator)
       :descriptor (list 'moving interval query-descriptor)
-      :concurrent? (-> query-descriptor (compile-operators nil) concurrent?)
-      :combine #((combiner generator') %)
-      :emit #((emitter generator') %)
+      :concurrent? (concurrent? generator)
+      :combine (combiner generator)
+      :emit (emitter generator)
       :create (fn [{:keys [now]
                     :as options}]
                 (assert now "Moving operators require that :timestamp be defined.")
                 (let [windowed-values (atom (sorted-map))
-                      gen (compile-operators query-descriptor options)
                       trimmed-values (fn [m]
                                        (let [t (now)
                                              cutoff (- t interval)]
                                          (->> m
                                            (drop-while #(<= (key %) cutoff))
                                            (into (sorted-map)))))
-                      op (create gen options)]
+                      op (create generator options)]
                   (stream-aggregator
                     :process #(process-all! op %)
                     :flush #(flush-operator op)
                     :deref (fn []
                              (swap! windowed-values
                                #(assoc (trimmed-values %) (now) @op))
-                             ((combiner gen) (vals @windowed-values)))
+                             ((combiner generator) (vals @windowed-values)))
                     :reset #(reset-operator! op)))))))

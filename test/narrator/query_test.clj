@@ -76,7 +76,9 @@
                                     :rate 2}}
                   :rate 1}}
           (query-seq
-            (n/group-by :name {:rate n/rate, :children [:children n/concat n/recur]})
+            (n/recur-to
+              (n/group-by :name
+                {:rate n/rate, :children [:children n/concat n/recur]}))
             [x])))))
 
 ;;;

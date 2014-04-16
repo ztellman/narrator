@@ -12,40 +12,35 @@
 
 ;;;
 
-(defn- create-gen+operator
-  [query-descriptor
+(defn- create-operator
+  [gen
    {:keys [now buffer? block-size]
     :or {buffer? true
          block-size 1024}}]
   (let [semaphore (ex/semaphore)]
-    (let [options {:now now
+    (c/create gen
+      {:execution-affinity (when-not (c/concurrent? gen)
+                             (r/rand-int Integer/MAX_VALUE))
 
-                   :top-level? true
+       :now now
 
-                   :compiled-operator-wrapper
-                   (if buffer?
-                     (fn [op {:keys [execution-affinity]}]
-                       (ex/buffered-aggregator
-                         {:semaphore semaphore
-                          :operator op
-                          :capacity block-size
-                          :execution-affinity execution-affinity}))
-                     (fn [op _]
-                       op))
 
-                   :aggregator-generator-wrapper
-                   (fn [gen]
-                     (if (and (not (c/concurrent? gen)) (c/combiner gen))
-                       (ex/thread-local-aggregator gen)
-                       gen))}
+       :compiled-operator-wrapper
+       (if buffer?
+         (fn [op {:keys [execution-affinity]}]
+           (ex/buffered-aggregator
+             {:semaphore semaphore
+              :operator op
+              :capacity block-size
+              :execution-affinity execution-affinity}))
+         (fn [op _]
+           op))
 
-          gen (c/compile-operators query-descriptor options)]
-
-      [gen
-       (c/create gen
-         (assoc options
-           :execution-affinity (when-not (c/concurrent? gen)
-                                 (r/rand-int Integer/MAX_VALUE))))])))
+       :aggregator-generator-wrapper
+       (fn [gen]
+         (if (and (not (c/concurrent? gen)) (c/combiner gen))
+           (ex/thread-local-aggregator gen)
+           gen))})))
 
 ;;;
 
@@ -152,12 +147,13 @@
            transform (if (and period timestamp)
                        identity
                        #(first (map :value %)))
-           [gen operator] (create-gen+operator
-                            query-descriptor
-                            (assoc options :now (when timestamp #(deref current-time))))]
+           generator (c/compile-operators query-descriptor)
+           operator (create-operator
+                      generator
+                      (assoc options :now (when timestamp #(deref current-time))))]
        (transform
          (query-seq-
-           gen
+           generator
            operator
            current-time
            start-time
@@ -171,7 +167,7 @@
   ([query-descriptor
     {:keys [deserialize]
      :or {deserialize identity}}]
-     (let [gen (c/compile-operators query-descriptor nil)]
+     (let [gen (c/compile-operators query-descriptor)]
        (comp
          (c/emitter gen)
          (c/combiner gen)
@@ -207,10 +203,11 @@
           now #(System/currentTimeMillis)
           period (long period)
           current-time (atom (when-not timestamp (now)))
-          [gen op] (create-gen+operator
-                     query-descriptor
-                     (assoc options :now #(deref current-time)))
-          deref' (deref-fn mode gen serialize)]
+          generator (c/compile-operators query-descriptor)
+          op (create-operator
+               generator
+               (assoc options :now #(deref current-time)))
+          deref' (deref-fn mode generator serialize)]
       (if-not timestamp
 
         ;; process everything in realtime
@@ -293,10 +290,11 @@
     (let [now #(System/currentTimeMillis)
           period (long period)
           current-time (atom (when-not timestamp (now)))
-          [gen op] (create-gen+operator
-                     query-descriptor
-                     (assoc options :now #(deref current-time)))
-          deref' (deref-fn mode gen serialize)
+          generator (c/compile-operators query-descriptor)
+          op (create-operator
+               generator
+               (assoc options :now #(deref current-time)))
+          deref' (deref-fn mode generator serialize)
           out (l/channel)
           lock (lock/asymmetric-lock)]
       (if-not timestamp

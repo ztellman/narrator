@@ -122,7 +122,7 @@ We can also split on arbitrary fields within the data:
 
 Here we've used `group-by` to split the stream along a facet defined by the given function, and then applied the given operators to each subset of the data.
 
-The structural query descriptors work great when we know the structure of the data ahead of time, but what about when the structure is nested, even arbitrarily so?  In these cases, we can use `recur`, which feeds the messages back into the same descriptor:
+The structural query descriptors work great when we know the structure of the data ahead of time, but what about when the structure is nested, even arbitrarily so?  In these cases, we can use `recur` and `recur-to`, which feeds the messages back into the same descriptor:
 
 ```clj
 > (def x {:name "foo"
@@ -132,9 +132,10 @@ The structural query descriptors work great when we know the structure of the da
                      {:name "baz"}]})
 #'x
 > (query-seq
-    (n/group-by :name
-      {:rate n/rate
-       :children [:children n/concat n/recur]})
+    (n/recur-to
+      (n/group-by :name
+        {:rate n/rate
+         :children [:children n/concat n/recur]}))
     [x])
 {"foo" {:rate 1,
         :children {"bar" {:rate 1,
@@ -144,7 +145,7 @@ The structural query descriptors work great when we know the structure of the da
                           :children nil}}}}
 ```
 
-In this operator, we group each task by their `:name`, first counting their frequency, but also taking the list of `:children`, concatenating it such that each element is propagated forward as an individual message, and then fed back into the same query.
+In this operator, we group each task by their `:name`, first counting their frequency, but also taking the list of `:children`, concatenating it such that each element is propagated forward as an individual message, and then fed back into the query enclosed by `recur-to`.
 
 ### core.async and lamina integration
 

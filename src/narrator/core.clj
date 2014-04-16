@@ -15,6 +15,7 @@
   (flush-operator [_]))
 
 (definterface+ StreamOperatorGenerator
+  (recur-to! [_ generator])
   (deserializer [_])
   (serializer [_])
   (aggregator? [_])
@@ -58,6 +59,7 @@
   [& {:keys [concurrent? create descriptor]}]
   (assert create)
   (reify StreamOperatorGenerator
+    (recur-to! [_ _])
     (emitter- [_] identity)
     (combiner [_] nil)
     (aggregator? [_] false)
@@ -80,7 +82,7 @@
   (assert (and process deref))
   (reify
     StreamOperator
-    (reducer [_] nil)
+     (reducer [_] nil)
     (reset-operator! [_] (when reset (reset)))
     (process-all! [_ msgs] (process msgs))
 
@@ -92,12 +94,13 @@
     (deref [_] (deref))))
 
 (defn stream-aggregator-generator
-  [& {:keys [concurrent? create descriptor combine emit serialize deserialize]
+  [& {:keys [concurrent? create descriptor combine emit serialize deserialize recur-to]
       :or {emit identity
            deserialize identity
            serialize identity}}]
   (assert create)
   (reify StreamOperatorGenerator
+    (recur-to! [_ generator] (when recur-to (recur-to generator)))
     (serializer [_] serialize)
     (deserializer [_] deserialize)
     (emitter- [_] emit)
@@ -130,12 +133,13 @@
   "Returns a concurrent stream aggregator that combines messages via the two-arity `combine`
    function, starting with an initial value from the zero-arity `initial`. If the combined
    value needs to be processed before emitting, a custom `emit` function may be defined."
-  [& {:keys [initial combine pre-process emit clear-on-reset? serialize deserialize]
+  [& {:keys [initial combine pre-process emit clear-on-reset? serialize deserialize recur-to]
       :or {emit identity
            clear-on-reset? true
            serialize pr-str
            deserialize edn/read-string}}]
   (stream-aggregator-generator
+    :recur-to recur-to
     :serialize serialize
     :deserialize deserialize
     :concurrent? false
@@ -162,19 +166,20 @@
      (alter-var-root (var ~name) (fn [f#] (with-meta f# {::generator-generator true})))
      (var ~name)))
 
-(defn create-stream-processor [gen options]
+(defn create-stream-processor [gen]
   (if (aggregator? gen)
     (let [combiner-fn (or (combiner gen) first)
           emitter-fn (emitter gen)
-          op (create gen options)]
+          op (create gen nil)]
       (stream-processor
         :reducer (r/map
                    (fn [x]
-                     (reset-operator! op)
-                     (process! op x)
-                     (flush-operator op)
-                     (->> [(deref' op)] combiner-fn emitter-fn)))))
-    (create gen options)))
+                     (when-not (nil? x)
+                       (reset-operator! op)
+                       (process! op x)
+                       (flush-operator op)
+                       (->> [(deref' op)] combiner-fn emitter-fn))))))
+    (create gen nil)))
 
 (declare accumulator split)
 
@@ -196,78 +201,67 @@
 (defn compile-operators
   "Takes a descriptor of stream operations, and returns a function that generates a single
    stream operator that is the composition of all described operators."
-  ([op-descriptor]
-     (compile-operators op-descriptor nil))
-  ([op-descriptor
-    {:keys [top-level?]
-     :or {top-level? false}
-     :as options}]
-     (cond
-       (-> op-descriptor meta ::compiled)
-       op-descriptor
+  [op-descriptor]
+  (cond
+    (-> op-descriptor meta ::compiled)
+    op-descriptor
 
-       (not (sequential? op-descriptor))
-       (compile-operators [op-descriptor] options)
+    (not (sequential? op-descriptor))
+    (compile-operators [op-descriptor])
 
-       :else
-       (let [generators (map ->operator-generator op-descriptor)
-             [pre [aggr & post]] [(take-while (complement aggregator?) generators)
-                                  (drop-while (complement aggregator?) generators)]]
-         (if-not aggr
-           (compile-operators
-             (concat op-descriptor [(accumulator)])
-             options)
-           (let [generator (promise)
-                 options' (when top-level?
-                            {:top-level-generator #(deref generator)
-                             :top-level? false})
-                 options (merge options options')
-                 concurrent? (and (every? concurrent? pre) (concurrent? aggr))]
-             (deliver generator
-               (with-meta
-                 (stream-aggregator-generator
-                   :descriptor op-descriptor
-                   :serialize (serializer aggr)
-                   :deserialize (deserializer aggr)
-                   :concurrent? concurrent?
-                   :combine (combiner aggr)
-                   :emit (let [aggr-emitter (emitter aggr)]
-                           (if post
-                             (fn [x]
-                               (let [post (->> post
-                                            (map #(create-stream-processor % options))
-                                            combine-processors)]
-                                 (first (into [] (post [(aggr-emitter x)])))))
-                             aggr-emitter))
-                   :create (fn [{:keys [aggregator-generator-wrapper
-                                        compiled-operator-wrapper]
-                                 :or {compiled-operator-wrapper (fn [op _] op)
-                                      aggregator-generator-wrapper identity}
-                                 :as options}]
-                             (let [pre (map #(create-stream-processor % options) pre)
-                                   post (map #(create-stream-processor % options) post)
-                                   ops (concat pre post)
-                                   pre (combine-processors pre)
-                                   post (combine-processors post)
-                                   options (merge options options')
-                                   aggr (create (aggregator-generator-wrapper aggr) options)
-                                   ops (conj ops aggr)
-                                   process-fn (if pre
-                                                (if concurrent?
-                                                  #(process-all! aggr (r/foldcat (pre %)))
-                                                  #(process-all! aggr (into [] (pre %))))
-                                                #(process-all! aggr %))
-                                   flush-ops (filterv #(instance? IBufferedAggregator %) ops)]
-                               (compiled-operator-wrapper
-                                 (stream-aggregator
-                                   :concurrent? concurrent?
-                                   :reset #(doseq [r ops] (reset-operator! r))
-                                   :flush #(doseq [r flush-ops] (flush-operator r))
-                                   :deref #(deref aggr)
-                                   :process process-fn)
-                                 options))))
-                 {::compiled true}))
-             @generator))))))
+    :else
+    (let [generators (map ->operator-generator op-descriptor)
+          [pre [aggr & post]] [(take-while (complement aggregator?) generators)
+                               (drop-while (complement aggregator?) generators)]]
+      (if-not aggr
+        (compile-operators (concat op-descriptor [(accumulator)]))
+        (let [generator (promise)
+              concurrent? (and (every? concurrent? pre) (concurrent? aggr))]
+          (deliver generator
+            (with-meta
+              (stream-aggregator-generator
+                :recur-to #(recur-to! aggr %)
+                :descriptor op-descriptor
+                :serialize (serializer aggr)
+                :deserialize (deserializer aggr)
+                :concurrent? concurrent?
+                :combine (combiner aggr)
+                :emit (let [aggr-emitter (emitter aggr)]
+                        (if post
+                          (fn [x]
+                            (let [post (->> post
+                                         (map create-stream-processor)
+                                         combine-processors)]
+                              (first (into [] (post [(aggr-emitter x)])))))
+                          aggr-emitter))
+                :create (fn [{:keys [aggregator-generator-wrapper
+                                     compiled-operator-wrapper]
+                              :or {compiled-operator-wrapper (fn [op _] op)
+                                   aggregator-generator-wrapper identity}
+                              :as options}]
+                          (let [pre (map create-stream-processor pre)
+                                post (map create-stream-processor post)
+                                ops (concat pre post)
+                                pre (combine-processors pre)
+                                post (combine-processors post)
+                                aggr (create (aggregator-generator-wrapper aggr) options)
+                                ops (conj ops aggr)
+                                process-fn (if pre
+                                             (if concurrent?
+                                               #(process-all! aggr (r/foldcat (pre %)))
+                                               #(process-all! aggr (into [] (pre %))))
+                                             #(process-all! aggr %))
+                                flush-ops (filterv #(instance? IBufferedAggregator %) ops)]
+                            (compiled-operator-wrapper
+                              (stream-aggregator
+                                :concurrent? concurrent?
+                                :reset #(doseq [r ops] (reset-operator! r))
+                                :flush #(doseq [r flush-ops] (flush-operator r))
+                                :deref #(deref aggr)
+                                :process process-fn)
+                              options))))
+              {::compiled true}))
+          @generator)))))
 
 (defn compile-operators*
   "Given a descriptor of stream operations, returns an instance of an operator that is the
@@ -275,7 +269,7 @@
   ([op-descriptor]
      (compile-operators* op-descriptor nil))
   ([op-descriptor options]
-     (create (compile-operators op-descriptor options) options)))
+     (create (compile-operators op-descriptor) options)))
 
 ;;;
 
@@ -296,31 +290,28 @@
   ""
   [name->ops]
   (let [ks (keys name->ops)
-        options-thunk (promise)
-        generators' (map #(compile-operators % nil) (vals name->ops))
-        serializers (map serializer generators')
-        deserializers (map deserializer generators')
-        generators-thunk (promise)]
+        generators (map compile-operators (vals name->ops))]
     (stream-aggregator-generator
+      :recur-to #(doseq [g generators] (recur-to! g %))
       :descriptor name->ops
-      :concurrent? (every? concurrent? generators')
+      :concurrent? (every? concurrent? generators)
       :serialize (fn [m]
                    (zipmap ks
                      (map
                        (fn [f k] (f (get m k)))
-                       serializers
+                       (map serializer generators)
                        ks)))
       :deserialize (fn [m]
                      (zipmap ks
                        (map
                          (fn [f k] (f (get m k)))
-                         deserializers
+                         (map deserializer generators)
                          ks)))
-      :combine (when (->> generators'
+      :combine (when (->> generators
                        (map combiner)
                        (every? (complement nil?)))
                  (fn [xs]
-                   (let [cs (map combiner @generators-thunk)]
+                   (let [cs (map combiner generators)]
                      (zipmap
                        ks
                        (map
@@ -332,14 +323,12 @@
                          cs
                          ks)))))
       :emit (fn [m]
-              (let [emitters (map emitter @generators-thunk)]
+              (let [emitters (map emitter generators)]
                 (zipmap
                   ks
                   (map #(%1 (get m %2)) emitters ks))))
       :create (fn [options]
-                (let [generators (map #(compile-operators % options) (vals name->ops))
-                      _ (deliver generators-thunk generators)
-                      ops (map
+                (let [ops (map
                             #(create %
                                (assoc options
                                  :execution-affinity (when-not (concurrent? %)
