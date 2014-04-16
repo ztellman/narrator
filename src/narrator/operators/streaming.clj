@@ -54,13 +54,13 @@
          :serialize (fn [digest]
                       (-> digest
                         QDigest/serialize
-                        (bt/compress :bzip2)
+                        (bt/compress :gzip)
                         (bt/encode :base64)
                         bs/to-string))
          :deserialize (fn [x]
                         (-> x
                           (bt/decode :base64)
-                          (bt/decompress :bzip2)
+                          (bt/decompress :gzip)
                           bs/to-byte-array
                           QDigest/deserialize))
          :emit (fn [^QDigest digest]
@@ -113,13 +113,13 @@
        :serialize (fn [^HyperLogLogPlus hll]
                     (-> hll
                       .getBytes
-                      (bt/compress :bzip2)
+                      (bt/compress :gzip)
                       (bt/encode :base64)
                       bs/to-string))
        :deserialize (fn [x]
                       (-> x
                         (bt/decode :base64)
-                        (bt/decompress :bzip2)
+                        (bt/decompress :gzip)
                         bs/to-byte-array
                         HyperLogLogPlus$Builder/build))
        :emit (fn [^HyperLogLogPlus hll]
@@ -166,13 +166,13 @@
        :serialize (fn [cms]
                     (-> cms
                       CountMinSketch/serialize
-                      (bt/compress :bzip2)
+                      (bt/compress :gzip)
                       (bt/encode :base64)
                       bs/to-string))
        :deserialize (fn [x]
                       (-> x
                         (bt/decode :base64)
-                        (bt/decompress :bzip2)
+                        (bt/decompress :gzip)
                         bs/to-byte-array
                         CountMinSketch/deserialize))
        :emit (fn [^CountMinSketch cms]
