@@ -216,6 +216,7 @@
       (if-not aggr
         (compile-operators (concat op-descriptor [(accumulator)]))
         (let [generator (promise)
+              combiner (when (every? concurrent? pre) (combiner aggr))
               concurrent? (and (every? concurrent? pre) (concurrent? aggr))]
           (deliver generator
             (with-meta
@@ -225,7 +226,7 @@
                 :serialize (serializer aggr)
                 :deserialize (deserializer aggr)
                 :concurrent? concurrent?
-                :combine (combiner aggr)
+                :combine combiner
                 :emit (let [aggr-emitter (emitter aggr)]
                         (if post
                           (fn [x]
