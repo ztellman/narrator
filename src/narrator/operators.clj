@@ -69,7 +69,6 @@
      :or {clear-on-reset? true}}]
      (stream-processor-generator
        :concurrent? false
-       :combine #(apply + %)
        :create (fn [options]
                  (let [ref (AtomicReference. nil)]
                    (stream-processor
