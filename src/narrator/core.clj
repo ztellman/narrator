@@ -154,8 +154,8 @@
                              (let [msgs (if pre-process
                                           (map pre-process msgs)
                                           msgs)
-                                   val' (reduce combine (initial) msgs)]
-                               (swap! val combine val'))))))))
+                                   val' (reduce #(combine [%1 %2]) (initial) msgs)]
+                               (swap! val #(combine [%1 %2]) val'))))))))
 
 ;;;
 

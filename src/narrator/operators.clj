@@ -127,8 +127,12 @@
                  Double/NaN
                  (/ sum cnt)))
        :pre-process (fn [n] [n 1])
-       :combine (fn [[s-a c-a] [s-b c-b]]
-                  [(+ s-a s-b) (+ c-a c-b)]))))
+       :combine (fn [tuples]
+                  (if (= 2 (count tuples))
+                    (let [[[s-a c-a] [s-b c-b]] tuples]
+                      [(+ s-a s-b) (+ c-a c-b)])
+                    [(->> tuples (map first) (apply +))
+                     (->> tuples (map second) (apply +))])))))
 
 (defn-operator group-by
   "Splits the stream by `facet`, and applies `ops` to the substreams in parallel."
