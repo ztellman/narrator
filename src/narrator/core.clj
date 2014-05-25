@@ -136,8 +136,8 @@
   [& {:keys [initial combine pre-process emit clear-on-reset? serialize deserialize recur-to]
       :or {emit identity
            clear-on-reset? true
-           serialize pr-str
-           deserialize edn/read-string}}]
+           serialize identity
+           deserialize identity}}]
   (stream-aggregator-generator
     :recur-to recur-to
     :serialize serialize
