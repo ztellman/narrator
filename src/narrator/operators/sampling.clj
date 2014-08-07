@@ -20,8 +20,6 @@
 ;; which are in turn based on:
 ;; http://www.research.att.com/people/Cormode_Graham/library/publications/CormodeShkapenyukSrivastavaXu09.pdf
 
-(p/use-primitive-operators)
-
 (defn-operator sample
   "Emits a uniform sampling of messages.  If `clear-on-reset?` is true, the sample only
    represents messages in the last period, otherwise the sample is over the entire lifetime
@@ -47,14 +45,14 @@
              (fn [msgs]
                (doseq [msg msgs]
                  (let [cnt (.incrementAndGet counter)]
-                   (if (<= cnt sample-size)
+                   (if (p/<= cnt sample-size)
 
                      ;; we don't have our full sample size, add everything
-                     (.set samples (dec cnt) msg)
+                     (.set samples (p/dec cnt) msg)
 
                      ;; check to see if we should displace an existing sample
                      (let [idx (r/rand-int cnt)]
-                       (when (< idx sample-size)
+                       (when (p/< idx sample-size)
                          (.set samples idx msg)))))))
 
              :deref

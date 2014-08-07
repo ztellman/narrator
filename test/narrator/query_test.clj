@@ -3,8 +3,7 @@
     [narrator query]
     [clojure test])
   (:require
-    [lamina.core :as l]
-    [clojure.core.async :as a]
+    [manifold.stream :as s]
     [narrator.operators :as n]
     [criterium.core :as c]))
 
@@ -107,35 +106,15 @@
     (separable? q (range 100))))
 ;;;
 
-(defn seq->channel [s]
-  (let [out (a/chan)]
-    (a/thread
-      (loop [s s]
-        (when-not (empty? s)
-          (a/>!! out (first s))
-          (recur (rest s))))
-      (a/close! out))
-    out))
-
-(defn channel->seq [ch]
-  (lazy-seq
-    (let [msg (a/<!! ch)]
-      (when-not (nil? msg)
-        (cons msg (channel->seq ch))))))
-
-(deftest test-query-channel
+(deftest test-query-stream
   (are [expected descriptor]
     (= expected
       (->> data
-        seq->channel
-        (query-channel descriptor {:period 1e6})
-        channel->seq
+        (query-stream descriptor {:period 1e6})
         first)
       (->> data
         (map #(hash-map :timestamp %1 :value %2) (range))
-        seq->channel
-        (query-channel descriptor {:value :value, :timestamp :timestamp, :period 1e6})
-        channel->seq
+        (query-stream descriptor {:value :value, :timestamp :timestamp, :period 1e6})
         (map :value)
         first)
       )
@@ -144,36 +123,6 @@
     1000.0 [:one n/sum]
     3000.0 [:one inc inc n/sum]
     3002.0 [:one inc inc n/sum inc inc]))
-
-;;;
-
-(deftest test-query-lamina-channel
-  (are [expected descriptor]
-    (= expected
-      (->> data
-        l/lazy-seq->channel
-        (query-lamina-channel descriptor {:period 1e6})
-        l/channel->lazy-seq
-        first)
-      (->> data
-        l/lazy-seq->channel
-        (query-lamina-channel descriptor {:period 100})
-        l/channel->lazy-seq
-        (#(do (Thread/sleep 150) (first %))))
-      (->> data
-        (map #(hash-map :timestamp %1 :value %2) (range))
-        l/lazy-seq->channel
-        (query-lamina-channel descriptor {:value :value, :timestamp :timestamp, :period 1e6})
-        l/channel->lazy-seq
-        (map :value)
-        first)
-      )
-
-    1000   n/rate
-    1000.0 [:one n/sum]
-    3000.0 [:one inc inc n/sum]
-    3002.0 [:one inc inc n/sum inc inc]))
-
 
 ;;;
 

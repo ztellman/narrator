@@ -2,6 +2,9 @@
   (:use
     [potemkin])
   (:require
+    [manifold
+     [stream :as s]
+     [deferred :as d]]
     [narrator.utils
      [rand :as r]
      [time :as t]
@@ -175,50 +178,46 @@
 
 ;;;
 
-(defmacro ^:private when-core-async [& body]
-  (when (try
-          (require '[clojure.core.async :as a])
-          true
-          (catch Exception _
-            false))
-    `(do ~@body)))
+(defn query-stream
+  "Behaves like `query-seq`, except that the input is assumed to be a Manifold source, or
+   something that can be coerced to it (which includes a seq, a core.async stream, and a
+   BlockingQueue).  Returns a Manifold source.
 
-(when-core-async
+   A `:period` must be provided.  If no `:timestamp` is given, then the analysis will occur in
+   realtime, emitting query results  periodically without any timestamp.  If `:timestamp` is
+   given, then it will emit maps with `:timestamp` and `:value` entries whenever a period
+   elapses in the input stream."
+  [query-descriptor
+   {:keys [period timestamp value start-time buffer? block-size mode serialize]
+    :or {value identity
+         mode :full
+         serialize identity
+         period Long/MAX_VALUE}
+    :as options}
+   s]
+  (assert period "A :period must be specified.")
+  (let [s (s/->source s)
+        out (s/stream)
+        now #(System/currentTimeMillis)
+        period (long period)
+        current-time (atom (when-not timestamp (now)))
+        generator (c/compile-operators query-descriptor)
+        op (create-operator
+             generator
+             (assoc options :now #(deref current-time)))
+        deref' (deref-fn mode generator serialize)]
 
-  (defn query-channel
-    "Behaves like `query-seq`, except that the input is assumed to be a core.async channel, and the return value is also
-     a core.async channel.  A `:period` must be provided.  If no `:timestamp` is given, then the analysis will occur in
-     realtime, emitting query results  periodically without any timestamp.  If `:timestamp` is given, then it will emit
-     maps with `:timestamp` and `:value` entries whenever a period elapses in the input stream."
-    [query-descriptor
-     {:keys [period timestamp value start-time buffer? block-size mode serialize]
-      :or {value identity
-           mode :full
-           serialize identity
-           period Long/MAX_VALUE}
-      :as options}
-     ch]
-    (assert period "A :period must be specified.")
-    (let [out (a/chan)
-          now #(System/currentTimeMillis)
-          period (long period)
-          current-time (atom (when-not timestamp (now)))
-          generator (c/compile-operators query-descriptor)
-          op (create-operator
-               generator
-               (assoc options :now #(deref current-time)))
-          deref' (deref-fn mode generator serialize)]
-      (if-not timestamp
+    (if-not timestamp
 
-        ;; process everything in realtime
-        (a/go
-          (loop
-            [next-flush (+ @current-time period)
-             flush-signal (a/timeout period)]
-            (let [msg (a/alt!
-                        flush-signal ::flush
-                        ch ([msg _] msg))]
-              (if (or (nil? msg) (identical? ::flush msg))
+      ;; process everything in realtime
+      (d/loop
+        [next-flush (+ @current-time period)]
+        (let [timeout (- next-flush (now))]
+          (d/chain (if (neg? timeout)
+                     ::none
+                     (s/try-take! s ::none timeout ::none))
+            (fn [x]
+              (if (identical? ::none x)
 
                 ;; flush
                 (do
@@ -226,132 +225,45 @@
                   (reset! current-time (now))
                   (let [x (deref' op)]
                     (c/reset-operator! op)
-                    (a/>! out x)
-                    (when-not (nil? msg)
-                      (recur
-                        (+ next-flush period)
-                        (a/timeout (- period (- (now) next-flush)))))))
+                    (d/chain (s/put! out x)
+                      (fn [x]
+                        (if (and x (not (s/drained? s)))
+                          (d/recur (+ next-flush period))
+                          (s/close! out))))))
 
                 ;; process
                 (do
-                  (c/process! op (value msg))
-                  (recur next-flush flush-signal))))))
+                  (c/process! op (value x))
+                  (d/recur next-flush)))))))
 
-        ;; go on timestamps of messages
-        (a/go
-          (loop
-            [next-flush (when start-time (+ start-time period))]
-            (let [msg (a/<! ch)]
-              (let [next-flush (or next-flush
-                                 (when-not (nil? msg)
-                                   (+ (timestamp msg) period)))]
-                (if (or (nil? msg) (>= (timestamp msg) next-flush))
+      ;; go by timestamps of messages
+      (d/loop
+        [next-flush (when start-time (+ start-time period))]
+        (d/chain (s/take! s ::none)
+          (fn [x]
+            (let [next-flush (or next-flush
+                               (when-not (identical? ::none x)
+                                 (+ (timestamp x) period)))]
+              (if (or (identical? ::none x)
+                    (>= (timestamp x) next-flush))
 
-                  ;; flush
-                  (do
-                    (c/flush-operator op)
-                    (reset! current-time next-flush)
-                    (let [x (deref' op)]
-                      (c/reset-operator! op)
-                      (a/>! out {:timestamp (or next-flush 0) :value x})
-                      (when-not (nil? msg)
-                        (c/process! op (value msg))
-                        (recur (+ next-flush period)))))
-
-                  ;; process
-                  (do
-                    (c/process! op (value msg))
-                    (recur next-flush))))))))
-      out)))
-
-(defmacro ^:private when-lamina [& body]
-  (when (try
-          (require '[lamina.core :as l])
-          (require '[lamina.api :as la])
-          true
-          (catch Exception _
-            false))
-    `(do ~@body)))
-
-(when-lamina
-  (defn query-lamina-channel
-    "Behaves like `query-seq`, except that the input is assumed to be a Lamina channel, and the return value is also
-     a Lamina channel.  A `:period` must be provided.  If no `:timestamp` is given, then the analysis will occur in
-     realtime, emitting query results  periodically without any timestamp.  If `:timestamp` is given, then it will emit
-     maps with `:timestamp` and `:value` entries whenever a period elapses in the input stream."
-    [query-descriptor
-     {:keys [period timestamp value start-time buffer? block-size mode serialize]
-      :or {value identity
-           period Long/MAX_VALUE
-           mode :full
-           serialize identity}
-      :as options}
-     ch]
-    (let [now #(System/currentTimeMillis)
-          period (long period)
-          current-time (atom (when-not timestamp (now)))
-          generator (c/compile-operators query-descriptor)
-          op (create-operator
-               generator
-               (assoc options :now #(deref current-time)))
-          deref' (deref-fn mode generator serialize)
-          out (l/channel)
-          lock (lock/asymmetric-lock)]
-      (if-not timestamp
-
-        ;; do realtime processing
-        (do
-
-          (l/join
-            (l/periodically
-              {:period period}
-              (fn []
-                (lock/with-exclusive-lock lock
+                ;; flush
+                (do
                   (c/flush-operator op)
-                  (let [x (deref' op)]
+                  (reset! current-time next-flush)
+                  (let [val (deref' op)]
                     (c/reset-operator! op)
-                    x))))
-            out)
+                    (d/chain (s/put! out {:timestamp (or next-flush 0) :value val})
+                      (fn [res]
+                        (if (and res (not (identical? ::none x)))
+                          (do
+                            (c/process! op (value x))
+                            (d/recur (+ next-flush period)))
+                          (s/close! out))))))
 
-          (la/bridge-siphon ch out "query-lamina-channel"
-            (fn [msg]
-              (lock/with-lock lock
-                (swap! current-time + period)
-                (c/process! op (value msg)))))
+                ;; process
+                (do
+                  (c/process! op (value x))
+                  (d/recur next-flush))))))))
 
-          (l/on-drained ch
-            (fn []
-              (lock/with-exclusive-lock lock
-                (c/flush-operator op)
-                (let [x (deref' op)]
-                  (l/enqueue out x)
-                  (l/close out))))))
-
-        ;; go on timestamps of messages
-        (let [next-flush (atom (when start-time (+ start-time period)))]
-
-          (la/bridge-siphon ch out "query-lamina-channel"
-            (fn [msg]
-              (let [t (timestamp msg)]
-                (when-not @next-flush
-                  (reset! current-time t)
-                  (reset! next-flush (+ t period)))
-                (when (< @next-flush t)
-                  (lock/with-exclusive-lock lock
-                    (c/flush-operator op)
-                    (let [x (deref' op)]
-                      (c/reset-operator! op)
-                      (l/enqueue out {:timestamp @next-flush :value x})
-                      (reset! current-time @next-flush)
-                      (swap! next-flush + period))))
-                (lock/with-lock lock
-                  (c/process! op (value msg))))))
-
-          (l/on-drained ch
-            (fn []
-              (lock/with-exclusive-lock lock
-                (c/flush-operator op)
-                (let [x (deref' op)]
-                  (l/enqueue out {:timestamp @next-flush :value x})
-                  (l/close out)))))))
-      out)))
+    out))

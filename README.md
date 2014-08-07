@@ -5,7 +5,7 @@ Narrator is for analyzing and aggregating streams of data.  Stream processing is
 ### usage
 
 ```clj
-[narrator "0.1.0"]
+[narrator "0.1.1"]
 ```
 
 Narrator transforms streams of data into periodically sampled values.  This is most easily done using `narrator.query/query-seq`, which takes a query descriptor, an optional map of arguments, and an input sequence.
@@ -147,9 +147,9 @@ The structural query descriptors work great when we know the structure of the da
 
 In this operator, we group each task by their `:name`, first counting their frequency, but also taking the list of `:children`, concatenating it such that each element is propagated forward as an individual message, and then fed back into the query enclosed by `recur-to`.
 
-### core.async and lamina integration
+### streaming analysis
 
-If `core.async` is included in the classpath, then Narrator also provides a `narrator.query/query-channel` function, which behaves similarly to `query-seq`, but can also be used to process realtime streams.  A similar capability for [Lamina](https://github.com/ztellman/lamina) is provided via `narrator.query/query-lamina-channel`.
+For realtime analysis, `narrator.query/query-stream` can be used in place of `query-seq`.  This will accept seqs, core.async channels, Lamina channels, and Java BlockingQueues.  It will return a Manifold source, which can be coerced back into a core.async channel et al.
 
 ### available operators
 
