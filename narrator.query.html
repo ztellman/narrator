@@ -9,7 +9,7 @@
   <body>
     <header>
       <div id="header">
-        <h1 class="project-title">Narrator 0.1.1-SNAPSHOT API documentation</h1>
+        <h1 class="project-title">Narrator 0.1.1 API documentation</h1>
       </div>
     </header>
     <navigation>
@@ -22,7 +22,7 @@
       <div id="vars" class="sidebar">
         <h3>Public Vars</h3>
         <ul class="ns-var-links">
-          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.query.html#var-combiner">combiner</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.query.html#var-query-channel">query-channel</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.query.html#var-query-lamina-channel">query-lamina-channel</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.query.html#var-query-seq">query-seq</a></li>
+          <li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.query.html#var-combiner">combiner</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.query.html#var-query-seq">query-seq</a></li><li class="ns-var-list"><a class="ns-var-link ns-var-name" href="narrator.query.html#var-query-stream">query-stream</a></li>
         </ul>
       </div>
     </navigation>
@@ -39,28 +39,6 @@
             
             
             <div class="doc"><p>Returns a function that combines the output of :partial queries.</p>
-</div>
-          </div><div class="public">
-            <h3><a id="var-query-channel" class="source var-name" href="src/narrator/query.clj">query-channel</a></h3>
-            <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[query-descriptor {:keys [period timestamp value start-time buffer? block-size mode serialize], :or {value identity, mode :full, serialize identity, period Long/MAX_VALUE}, :as options} ch]</div>
-            
-            
-            <div class="doc"><p>Behaves like <code>query-seq</code>, except that the input is assumed to be a core.async channel, and the return value is also
-a core.async channel.  A <code>:period</code> must be provided.  If no <code>:timestamp</code> is given, then the analysis will occur in
-realtime, emitting query results  periodically without any timestamp.  If <code>:timestamp</code> is given, then it will emit
-maps with <code>:timestamp</code> and <code>:value</code> entries whenever a period elapses in the input stream.</p>
-</div>
-          </div><div class="public">
-            <h3><a id="var-query-lamina-channel" class="source var-name" href="src/narrator/query.clj">query-lamina-channel</a></h3>
-            <h4 class="var-type fn" id="var-type">fn</h4>
-            <div class="usage">[query-descriptor {:keys [period timestamp value start-time buffer? block-size mode serialize], :or {value identity, period Long/MAX_VALUE, mode :full, serialize identity}, :as options} ch]</div>
-            
-            
-            <div class="doc"><p>Behaves like <code>query-seq</code>, except that the input is assumed to be a Lamina channel, and the return value is also
-a Lamina channel.  A <code>:period</code> must be provided.  If no <code>:timestamp</code> is given, then the analysis will occur in
-realtime, emitting query results  periodically without any timestamp.  If <code>:timestamp</code> is given, then it will emit
-maps with <code>:timestamp</code> and <code>:value</code> entries whenever a period elapses in the input stream.</p>
 </div>
           </div><div class="public">
             <h3><a id="var-query-seq" class="source var-name" href="src/narrator/query.clj">query-seq</a></h3>
@@ -86,6 +64,21 @@ of the entire sequence.</p>
 <code>value</code> - the actual payload of the incoming messages that should be queried, defaults to <code>identity</code>
 <code>buffer?</code> - if true, messages are not immediately processed, and may be processed in parallel, defaults to true
 <code>block-size</code> - the size of the messages buffers, defaults to 1024</p>
+</div>
+          </div><div class="public">
+            <h3><a id="var-query-stream" class="source var-name" href="src/narrator/query.clj">query-stream</a></h3>
+            <h4 class="var-type fn" id="var-type">fn</h4>
+            <div class="usage">[query-descriptor {:keys [period timestamp value start-time buffer? block-size mode serialize], :or {value identity, mode :full, serialize identity, period Long/MAX_VALUE}, :as options} s]</div>
+            
+            
+            <div class="doc"><p>Behaves like <code>query-seq</code>, except that the input is assumed to be a Manifold source, or
+something that can be coerced to it (which includes a seq, a core.async stream, and a
+BlockingQueue).  Returns a Manifold source.</p>
+
+<p>A <code>:period</code> must be provided.  If no <code>:timestamp</code> is given, then the analysis will occur in
+realtime, emitting query results  periodically without any timestamp.  If <code>:timestamp</code> is
+given, then it will emit maps with <code>:timestamp</code> and <code>:value</code> entries whenever a period
+elapses in the input stream.</p>
 </div>
           </div>
         </div>
