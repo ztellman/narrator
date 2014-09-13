@@ -111,10 +111,12 @@
     (= expected
       (->> data
         (query-stream descriptor {:period 1e6})
+        s/stream->seq
         first)
       (->> data
         (map #(hash-map :timestamp %1 :value %2) (range))
         (query-stream descriptor {:value :value, :timestamp :timestamp, :period 1e6})
+        s/stream->seq
         (map :value)
         first)
       )

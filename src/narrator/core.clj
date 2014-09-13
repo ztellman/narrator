@@ -178,7 +178,7 @@
                        (reset-operator! op)
                        (process! op x)
                        (flush-operator op)
-                       (->> [(deref' op)] combiner-fn emitter-fn))))))
+                       (->> [(deref' op)] combiner-fn))))))
     (create gen nil)))
 
 (declare accumulator split)

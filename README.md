@@ -5,7 +5,7 @@ Narrator is for analyzing and aggregating streams of data.  Stream processing is
 ### usage
 
 ```clj
-[narrator "0.1.1"]
+[narrator "0.1.2"]
 ```
 
 Narrator transforms streams of data into periodically sampled values.  This is most easily done using `narrator.query/query-seq`, which takes a query descriptor, an optional map of arguments, and an input sequence.

@@ -1,4 +1,4 @@
-(defproject narrator "0.1.1"
+(defproject narrator "0.1.2"
   :description "concise, expressive stream analysis"
   :license {:name "MIT License"
             :url ""}
@@ -8,7 +8,7 @@
                  [primitive-math "0.1.4"]
                  [byte-transforms "0.1.3"]
                  [com.clearspring.analytics/stream "2.7.0"]
-                 [manifold "0.1.0-alpha2"]]
+                 [manifold "0.1.0-alpha4"]]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]
                                   [criterium "0.4.3"]
                                   [codox-md "0.2.0" :exclusions [org.clojure/clojure]]]}}
