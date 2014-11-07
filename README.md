@@ -87,7 +87,8 @@ We can also do mutliple simultaneous analyses:
 
 ```clj
 > (query-seq
-    {:sum [:foo n/sum], :rate n/rate}
+    {:sum [:foo n/sum] 
+	 :rate n/rate}
     (map #(hash-map :foo %) (range 10)))
 {:rate 10, :sum 45}
 ```
@@ -146,6 +147,49 @@ The structural query descriptors work great when we know the structure of the da
 ```
 
 In this operator, we group each task by their `:name`, first counting their frequency, but also taking the list of `:children`, concatenating it such that each element is propagated forward as an individual message, and then fed back into the query enclosed by `recur-to`.
+
+### partial and distributed analysis
+
+It's easy to get the mean of a sequence of numbers:
+
+```clj
+> (query-seq n/mean [3 4 5])
+4.0
+```
+
+But if we don't have all the numbers on hand (perhaps we have a giant compute cluster dedicated to the computation of mean values), this isn't what we want.  In this case, we'd use the `:partial` mode of `query-seq`.
+
+```clj
+> (query-seq
+    n/mean
+    {:mode :partial}
+    [3 4 5])
+[12.0 3]
+```
+
+Here, instead of simply getting a number representing the mean, we get a 2-tuple containing the sum and count of the input sequence.  This 2-tuple can be combined via addition with other such partially aggregated values, and only once we want the actual mean will we divide the sum by the count.
+
+This combination and division can be done via `narrator.query/combiner`, which for a given operator returns a function that takes a sequence of partially aggregated values, and returns the final value:
+
+```clj
+> (def c (combiner n/mean))
+
+> (c [[12.0 3] [36.0 9]])
+4.0
+```
+
+Note that while the partial aggregation for `mean` can be represented as a simple data structure, other operators require a more opaque representation.  In these cases, Narrator will encode these values in a serializable form which is compatible with JSON, EDN, and most other formats:
+
+```clj
+> (query-seq 
+    n/quantiles 
+    {:mode :partial} 
+    [1 2 3])
+"H4sIAAAAAAAA_2NgAANmh34HBjiAMJnBZO6xA1BRRjAZ19KAwvd3gmlkBACM5PHBTAAAAA"
+```
+
+This mechanism can be used to do distributed stream analysis (via frameworks like [Storm](https://storm.apache.org/)), [OLAP cube-style](http://en.wikipedia.org/wiki/OLAP_cube) aggregations, and in a variety of other applications.
+
 
 ### streaming analysis
 
