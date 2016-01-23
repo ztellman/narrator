@@ -83,7 +83,7 @@ Here we've defined a `:timestamp` function that will give us the time at which e
 
 ---
 
-We can also do mutliple simultaneous analyses:
+We can also do multiple simultaneous analyses:
 
 ```clj
 > (query-seq
